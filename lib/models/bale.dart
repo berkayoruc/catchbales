@@ -11,9 +11,34 @@ enum ThrownObjectType {
   cow,
   cat,
   dog,
-  bird;
+  bird,
+  burningBale,
+  goldenBale,
+  magnetPowerUp,
+  slowMoPowerUp;
 
-  bool get isAnimal => this != ThrownObjectType.bale;
+  bool get isAnimal =>
+      this == ThrownObjectType.chicken ||
+      this == ThrownObjectType.rooster ||
+      this == ThrownObjectType.duck ||
+      this == ThrownObjectType.sheep ||
+      this == ThrownObjectType.cow ||
+      this == ThrownObjectType.cat ||
+      this == ThrownObjectType.dog ||
+      this == ThrownObjectType.bird;
+
+  bool get isBaleLike =>
+      this == ThrownObjectType.bale || this == ThrownObjectType.goldenBale;
+
+  bool get isPowerUp =>
+      this == ThrownObjectType.magnetPowerUp ||
+      this == ThrownObjectType.slowMoPowerUp;
+
+  bool get isSpecial =>
+      this == ThrownObjectType.burningBale ||
+      this == ThrownObjectType.goldenBale ||
+      this == ThrownObjectType.magnetPowerUp ||
+      this == ThrownObjectType.slowMoPowerUp;
 
   String get displayNameEn => switch (this) {
         ThrownObjectType.bale => 'Straw Bale',
@@ -25,6 +50,10 @@ enum ThrownObjectType {
         ThrownObjectType.cat => 'Cat',
         ThrownObjectType.dog => 'Dog',
         ThrownObjectType.bird => 'Bird',
+        ThrownObjectType.burningBale => 'Burning Bale',
+        ThrownObjectType.goldenBale => 'Golden Bale',
+        ThrownObjectType.magnetPowerUp => 'Magnet Pitchfork',
+        ThrownObjectType.slowMoPowerUp => 'Slow-Mo Hourglass',
       };
 
   String get displayName => displayNameEn;
@@ -39,6 +68,10 @@ enum ThrownObjectType {
         ThrownObjectType.cat => 'Kedi',
         ThrownObjectType.dog => 'Köpek',
         ThrownObjectType.bird => 'Kuş',
+        ThrownObjectType.burningBale => 'Yanmış Balya',
+        ThrownObjectType.goldenBale => 'Altın Balya',
+        ThrownObjectType.magnetPowerUp => 'Mıknatıs Tırmık',
+        ThrownObjectType.slowMoPowerUp => 'Zaman Kum Saati',
       };
 
   String get emoji => switch (this) {
@@ -51,6 +84,10 @@ enum ThrownObjectType {
         ThrownObjectType.cat => '🐱',
         ThrownObjectType.dog => '🐶',
         ThrownObjectType.bird => '🐦',
+        ThrownObjectType.burningBale => '🔥',
+        ThrownObjectType.goldenBale => '🌟',
+        ThrownObjectType.magnetPowerUp => '🧲',
+        ThrownObjectType.slowMoPowerUp => '⏳',
       };
 }
 
@@ -64,6 +101,8 @@ enum BaleState {
   overflowOutside,
   overflowInside,
   escaping,
+  thrownAway,
+  burnedCell,
 }
 
 /// Represents a single low-poly straw bale or farm animal with 3D trajectory and orientation.
@@ -82,6 +121,7 @@ class StrawBale {
   Vector3 currentPos = Vector3.zero();
   Vector3 currentRotation = Vector3.zero();
   BaleState state = BaleState.inFlight;
+  double windDriftX = 0.0;
 
   // Timer & velocity for missed-on-floor, >5 row overflow, or animal escape physics
   double missedDisplayTimer = 0.0;
@@ -127,7 +167,10 @@ class StrawBale {
       final double arcY = 4.0 * arcHeight * progress * (1.0 - progress);
       final double py = linearY + arcY;
 
-      currentPos.setValues(px, py, pz);
+      // Apply aerodynamic crosswind curve during flight if wind is blowing
+      final double windOffset = windDriftX * math.sin(progress * math.pi) * 0.45;
+
+      currentPos.setValues(px + windOffset, py, pz);
 
       // Update 3D rotational tumble (animals wiggle gently instead of full upside-down tumble)
       if (objectType.isAnimal) {
@@ -140,6 +183,21 @@ class StrawBale {
         currentRotation.y += angularVelocity.y * dt;
         currentRotation.z += angularVelocity.z * dt;
       }
+    } else if (state == BaleState.thrownAway) {
+      // Hot potato burning bale tossed high out of the wagon into the meadow!
+      missedDisplayTimer -= dt;
+      currentPos.x += tumbleVelocity.x * dt;
+      currentPos.y += tumbleVelocity.y * dt;
+      currentPos.z += tumbleVelocity.z * dt;
+      tumbleVelocity.y -= 9.8 * dt;
+
+      currentRotation.x += angularVelocity.x * dt * 2.5;
+      currentRotation.y += angularVelocity.y * dt * 2.5;
+      currentRotation.z += angularVelocity.z * dt * 2.5;
+    } else if (state == BaleState.burnedCell) {
+      // Scorched smoking cell remnant fading out
+      missedDisplayTimer -= dt;
+      wobbleOffset += dt * 10.0;
     } else if (state == BaleState.escaping) {
       // Animal scurrying / hopping away across the wagon floor and jumping off!
       missedDisplayTimer -= dt;
@@ -188,6 +246,9 @@ class StrawBale {
 
   /// Opacity (0.0 to 1.0) for missed/overflow/escaping objects fading out at the end.
   double get fadeOpacity {
+    if (state == BaleState.thrownAway || state == BaleState.burnedCell) {
+      return (missedDisplayTimer / 0.85).clamp(0.0, 1.0);
+    }
     if (state == BaleState.escaping) {
       return (missedDisplayTimer / 0.35).clamp(0.0, 1.0);
     }

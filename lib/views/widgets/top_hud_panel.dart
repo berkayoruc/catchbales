@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/game_controller.dart';
-import '../../models/bale.dart';
+import '../../models/harvest_order.dart';
 import '../../utils/farm_theme.dart';
 
 /// Minimalist, single-row Top HUD Panel with icon+number pills (no text clutter):
@@ -96,27 +96,10 @@ class TopHudPanel extends StatelessWidget {
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                if (game.comboMultiplier > 1) ...[
-                                  const SizedBox(width: 5),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: FarmTheme.comboOrange,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      '${game.comboMultiplier}x',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                StreakPopupBadge(
+                                  comboCount: game.comboCount,
+                                  comboMultiplier: game.comboMultiplier,
+                                ),
                               ],
                             ),
                           ),
@@ -154,6 +137,54 @@ class TopHudPanel extends StatelessWidget {
                                   ? FarmTheme.sunWarmYellow
                                   : Colors.white70,
                               fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+
+                    // 2b. Time of Day & Multiplier Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: FarmTheme.uiPillBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: game.timeOfDay == AtmosphereTimeOfDay.night
+                              ? const Color(0xFF80D8FF)
+                              : (game.timeOfDay == AtmosphereTimeOfDay.sunset
+                                  ? FarmTheme.comboOrange
+                                  : FarmTheme.uiPillBorder),
+                          width: 1.5,
+                        ),
+                        boxShadow: FarmTheme.cozyShadow,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            switch (game.timeOfDay) {
+                              AtmosphereTimeOfDay.day => '☀️',
+                              AtmosphereTimeOfDay.sunset => '🌅',
+                              AtmosphereTimeOfDay.night => '🌙',
+                            },
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${game.atmosphereMultiplier}x',
+                            style: TextStyle(
+                              color: game.timeOfDay == AtmosphereTimeOfDay.night
+                                  ? const Color(0xFF80D8FF)
+                                  : (game.timeOfDay == AtmosphereTimeOfDay.sunset
+                                      ? FarmTheme.comboOrange
+                                      : FarmTheme.sunWarmYellow),
+                              fontSize: 11,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -205,6 +236,50 @@ class TopHudPanel extends StatelessWidget {
                   ],
                 ),
 
+                // ROW 1b: Active Power-Ups & Wave Events Indicator Row (Magnet, Slow-Mo, Frenzy, Wind)
+                if (game.isMagnetActive ||
+                    game.isSlowMoActive ||
+                    game.isFrenzyActive ||
+                    game.windStrength.abs() > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 5.0),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        if (game.isMagnetActive)
+                          _buildStatusPill(
+                            '🧲 MAGNET',
+                            '${game.magnetTimer.toStringAsFixed(1)}s',
+                            const Color(0xFF00E5FF),
+                          ),
+                        if (game.isSlowMoActive)
+                          _buildStatusPill(
+                            '⏳ SLOW-MO',
+                            '${game.slowMoTimer.toStringAsFixed(1)}s',
+                            const Color(0xFF80D8FF),
+                          ),
+                        if (game.isFrenzyActive)
+                          _buildStatusPill(
+                            '🌪️ FRENZY',
+                            '2x PTS',
+                            FarmTheme.comboOrange,
+                          ),
+                        if (game.windStrength.abs() > 0)
+                          _buildStatusPill(
+                            '💨 WIND',
+                            game.windStrength > 0 ? '>>>' : '<<<',
+                            FarmTheme.sunWarmYellow,
+                          ),
+                      ],
+                    ),
+                  ),
+
+                // ROW 1c: Active Mini Harvest Order Pill (Arcade Mode)
+                if (game.currentHarvestOrder != null)
+                  _buildHarvestOrderPill(game.currentHarvestOrder!),
+
                 // Animated Floating Popup Toast (Only pops up when incoming object or organize warning, then slides away!)
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 250),
@@ -223,11 +298,9 @@ class TopHudPanel extends StatelessWidget {
                       ),
                     );
                   },
-                  child: game.showIncomingPopup
-                      ? _buildIncomingPopup(game)
-                      : (game.showOrganizeAlert
-                          ? _buildOrganizePopup(game)
-                          : const SizedBox.shrink()),
+                  child: game.showOrganizeAlert
+                      ? _buildOrganizePopup(game)
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -237,30 +310,18 @@ class TopHudPanel extends StatelessWidget {
     );
   }
 
-  Widget _buildIncomingPopup(GameController game) {
-    final type = game.popupIncomingType ?? ThrownObjectType.bale;
-    final bool isAnimal = type.isAnimal;
-
+  Widget _buildStatusPill(String title, String value, Color accent) {
     return Container(
-      key: ValueKey('incoming_${type.name}'),
-      margin: const EdgeInsets.only(top: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isAnimal
-            ? FarmTheme.comboOrange.withValues(alpha: 0.95)
-            : FarmTheme.uiPillBg.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isAnimal ? Colors.white : FarmTheme.sunWarmYellow,
-          width: 1.6,
-        ),
+        color: FarmTheme.uiPillBg.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent, width: 1.4),
         boxShadow: [
           BoxShadow(
-            color: (isAnimal ? FarmTheme.comboOrange : FarmTheme.sunWarmYellow)
-                .withValues(alpha: 0.55),
-            blurRadius: 10,
+            color: accent.withValues(alpha: 0.35),
+            blurRadius: 6,
             spreadRadius: 1,
-            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -268,39 +329,78 @@ class TopHudPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            type.emoji,
-            style: const TextStyle(fontSize: 16),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            isAnimal
-                ? '⚠️ ${type.displayNameEn.toUpperCase()} INCOMING!'
-                : '${type.displayNameEn.toUpperCase()} INCOMING!',
+            title,
             style: TextStyle(
-              color: isAnimal ? Colors.white : FarmTheme.sunWarmYellow,
-              fontSize: 11,
+              color: accent,
+              fontSize: 10,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.5,
+              letterSpacing: 0.4,
             ),
           ),
-          if (isAnimal) ...[
-            const SizedBox(width: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: Colors.black38,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'STUN RISK',
-                style: TextStyle(
-                  color: Colors.yellowAccent,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                ),
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHarvestOrderPill(HarvestOrder order) {
+    return Container(
+      margin: const EdgeInsets.only(top: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: FarmTheme.uiPillBg.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: FarmTheme.sunWarmYellow.withValues(alpha: 0.6),
+          width: 1.2,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('📋', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 5),
+          Text(
+            order.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: FarmTheme.grassSoftGreen.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${order.progress}/${order.target}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w900,
               ),
             ),
-          ],
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '+${order.rewardPoints}',
+            style: const TextStyle(
+              color: FarmTheme.uiTextGold,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
         ],
       ),
     );
@@ -403,6 +503,183 @@ class TopHudPanel extends StatelessWidget {
                     : Colors.white30,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dynamic, non-static Streak/Combo Popup Badge ("steak sayısı aynı yerinde popup mantığında"):
+/// - Collapses smoothly when streak < 2
+/// - Springs into view in its designated HUD pill slot when streak starts (>= 2)
+/// - Triggers a punchy scale-and-glow bounce pop (1.0 -> 1.36 -> 1.0) on every consecutive catch
+/// - Clearly displays the active streak count (e.g. "🔥 3 STREAK", "🔥 5 STREAK")
+/// - Intensifies gradient & shadow as streak grows into Frenzy
+/// - Fades & scales away cleanly when the streak ends or resets
+class StreakPopupBadge extends StatefulWidget {
+  final int comboCount;
+  final int comboMultiplier;
+
+  const StreakPopupBadge({
+    super.key,
+    required this.comboCount,
+    required this.comboMultiplier,
+  });
+
+  @override
+  State<StreakPopupBadge> createState() => _StreakPopupBadgeState();
+}
+
+class _StreakPopupBadgeState extends State<StreakPopupBadge>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _popController;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _popController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.36)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.36, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 60,
+      ),
+    ]).animate(_popController);
+
+    if (widget.comboCount >= 2) {
+      _popController.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant StreakPopupBadge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.comboCount != oldWidget.comboCount) {
+      if (widget.comboCount > oldWidget.comboCount && widget.comboCount >= 2) {
+        _popController.forward(from: 0.0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _popController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isActive = widget.comboCount >= 2;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (child, animation) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: isActive
+          ? AnimatedBuilder(
+              key: ValueKey('streak_badge_${widget.comboCount}'),
+              animation: _scaleAnimation,
+              builder: (context, child) {
+                return Transform.scale(
+                  scale: _scaleAnimation.value,
+                  alignment: Alignment.center,
+                  child: child,
+                );
+              },
+              child: _buildBadgeContent(),
+            )
+          : const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildBadgeContent() {
+    final int count = widget.comboCount;
+    final int mult = widget.comboMultiplier;
+
+    // Dynamic gradient and shadow progression based on streak intensity
+    final List<Color> gradientColors;
+    final Color shadowColor;
+    if (count >= 10) {
+      // Frenzy overdrive: electric magenta to blazing orange
+      gradientColors = const [Color(0xFFFF007F), Color(0xFFFF9100)];
+      shadowColor = const Color(0xFFFF007F);
+    } else if (count >= 5) {
+      // Hot streak: fiery red-orange to deep amber
+      gradientColors = const [Color(0xFFFF3D00), Color(0xFFFF9100)];
+      shadowColor = const Color(0xFFFF3D00);
+    } else {
+      // Energetic combo starter: vibrant sunny orange
+      gradientColors = const [Color(0xFFFF8500), Color(0xFFFFA000)];
+      shadowColor = const Color(0xFFFF8500);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.white,
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor.withValues(alpha: 0.65),
+            blurRadius: 8,
+            spreadRadius: 1,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            '🔥',
+            style: TextStyle(fontSize: 11),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            '$count STREAK',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+          if (mult > 1) ...[
+            const SizedBox(width: 3),
+            Text(
+              '${mult}x',
+              style: const TextStyle(
+                color: Color(0xFFFFF176),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
         ],
       ),
     );

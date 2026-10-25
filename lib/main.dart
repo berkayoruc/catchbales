@@ -50,7 +50,7 @@ class FarmBaleGameApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Catch Bales 3D',
+      title: 'Catch Bales',
       debugShowCheckedModeBanner: false,
       localizationsDelegates: const [
         AppLocalizations.delegate,

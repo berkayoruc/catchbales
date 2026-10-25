@@ -4,12 +4,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vector_math/vector_math_64.dart';
 import '../models/game_mode.dart';
 import '../models/bale.dart';
+import '../models/harvest_order.dart';
 import '../models/stack_slot.dart';
 import '../physics/bale_spawner.dart';
 import '../physics/collision_detector.dart';
 import '../physics/trailer_physics.dart';
 import '../utils/audio_haptics.dart';
 import 'rive_game_controller.dart';
+
+/// Atmospheric day/sunset/night cycle progression as wagons are completed.
+enum AtmosphereTimeOfDay {
+  day,
+  sunset,
+  night;
+
+  String get displayName => switch (this) {
+        AtmosphereTimeOfDay.day => 'Day',
+        AtmosphereTimeOfDay.sunset => 'Sunset',
+        AtmosphereTimeOfDay.night => 'Night',
+      };
+}
 
 /// Floating visual text notification model
 class FloatingNotice {
@@ -93,6 +107,28 @@ class GameController extends ChangeNotifier {
   double _organizeAlertTimer = 0.0;
   int _organizeAlertRemaining = 0;
 
+  // Hot Potato: Holding Burning Bale
+  bool _isHoldingBurningBale = false;
+  double _burningBaleTimer = 0.0;
+  static const double maxBurningHoldDuration = 3.0;
+
+  // Power-Ups and Wave Events
+  double _magnetTimer = 0.0;
+  double _slowMoTimer = 0.0;
+  double _frenzyTimer = 0.0;
+  double _animalStampedeTimer = 0.0;
+  double _crosswindTimer = 0.0;
+  double _crosswindCooldown = 20.0;
+  double _windStrength = 0.0;
+  WaveEventType _activeWaveEvent = WaveEventType.normal;
+
+  // Clutch & Perfect Catches (Consecutive center/clutch catches trigger free auto-balance at 5)
+  int _consecutivePerfects = 0;
+
+  // Mini Harvest Orders
+  HarvestOrder? _currentHarvestOrder;
+  int _orderCounter = 0;
+
   // Per-Object Caught Statistics (Session & Persistent Lifetime)
   final Map<ThrownObjectType, int> _sessionCaughtByType = {
     for (final t in ThrownObjectType.values) t: 0,
@@ -144,6 +180,22 @@ class GameController extends ChangeNotifier {
   bool _isHoldingBackward = false; // Down screen (-Z toward tailgate)
 
   GameController({required this.riveBridge}) {
+    _isHoldingBurningBale = false;
+    _burningBaleTimer = 0.0;
+    _magnetTimer = 0.0;
+    _slowMoTimer = 0.0;
+    _frenzyTimer = 0.0;
+    _animalStampedeTimer = 0.0;
+    _crosswindTimer = 0.0;
+    _crosswindCooldown = 20.0;
+    _windStrength = 0.0;
+    _activeWaveEvent = WaveEventType.normal;
+    _consecutivePerfects = 0;
+    _orderCounter = 0;
+    _currentHarvestOrder = _gameMode == GameModeType.arcade
+        ? HarvestOrder.generateRandom(_orderCounter)
+        : null;
+
     spawner.reset(_gameMode);
     riveBridge.setGameMode(_gameMode.riveValue);
     riveBridge.setHealth(_health);
@@ -257,6 +309,35 @@ class GameController extends ChangeNotifier {
   ThrownObjectType get incomingObjectType =>
       currentIncomingBale?.objectType ?? spawner.nextUpcomingType;
 
+  /// Atmospheric Day / Sunset / Night time-of-day progression.
+  AtmosphereTimeOfDay get timeOfDay {
+    if (_wagonsCompleted < 2) return AtmosphereTimeOfDay.day;
+    if (_wagonsCompleted < 4) return AtmosphereTimeOfDay.sunset;
+    return AtmosphereTimeOfDay.night;
+  }
+
+  double get atmosphereMultiplier => switch (timeOfDay) {
+        AtmosphereTimeOfDay.day => 1.0,
+        AtmosphereTimeOfDay.sunset => 1.25,
+        AtmosphereTimeOfDay.night => 1.50,
+      };
+
+  // Hot Potato: Holding Burning Bale
+  bool get isHoldingBurningBale => _isHoldingBurningBale;
+  double get burningBaleTimer => _burningBaleTimer;
+
+  // Power-Ups and Wave Events
+  bool get isMagnetActive => _magnetTimer > 0.0;
+  double get magnetTimer => _magnetTimer;
+  bool get isSlowMoActive => _slowMoTimer > 0.0;
+  double get slowMoTimer => _slowMoTimer;
+  bool get isFrenzyActive => _activeWaveEvent == WaveEventType.frenzy;
+  WaveEventType get activeWaveEvent => _activeWaveEvent;
+  double get windStrength => _windStrength;
+
+  // Mini Harvest Orders
+  HarvestOrder? get currentHarvestOrder => _currentHarvestOrder;
+
   /// Number of bales caught since the last organize cutscene.
   int get balesSinceLastCutscene => _balesSinceLastCutscene;
 
@@ -272,6 +353,19 @@ class GameController extends ChangeNotifier {
       _incomingPopupTimer > 0.0 && _popupIncomingType != null;
   ThrownObjectType? get popupIncomingType => _popupIncomingType;
   double get incomingPopupTimer => _incomingPopupTimer;
+
+  /// Type of the object currently incoming towards the wagon (in-flight or newly ejected).
+  ThrownObjectType? get currentIncomingType {
+    for (final bale in _activeBales) {
+      if (bale.state == BaleState.inFlight) {
+        return bale.objectType;
+      }
+    }
+    if (_incomingPopupTimer > 0.0) {
+      return _popupIncomingType;
+    }
+    return null;
+  }
 
   /// True when organize countdown alert is displaying (pops up briefly then disappears).
   bool get showOrganizeAlert => _organizeAlertTimer > 0.0;
@@ -455,6 +549,19 @@ class GameController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @visibleForTesting
+  void setPlayerPositionForTesting(double x, double z) {
+    _playerX = x;
+    _playerZ = z;
+    _targetPlayerX = null;
+    _targetPlayerZ = null;
+  }
+
+  @visibleForTesting
+  void addActiveBaleForTesting(StrawBale bale) {
+    _activeBales.add(bale);
+  }
+
   void setTargetQuota(int quota) {
     _targetQuota = quota;
     notifyListeners();
@@ -462,6 +569,22 @@ class GameController extends ChangeNotifier {
 
   void switchMode(GameModeType newMode) {
     _gameMode = newMode;
+    _isHoldingBurningBale = false;
+    _burningBaleTimer = 0.0;
+    _magnetTimer = 0.0;
+    _slowMoTimer = 0.0;
+    _frenzyTimer = 0.0;
+    _animalStampedeTimer = 0.0;
+    _crosswindTimer = 0.0;
+    _crosswindCooldown = 20.0;
+    _windStrength = 0.0;
+    _activeWaveEvent = WaveEventType.normal;
+    _consecutivePerfects = 0;
+    _orderCounter = 0;
+    _currentHarvestOrder = _gameMode == GameModeType.arcade
+        ? HarvestOrder.generateRandom(_orderCounter)
+        : null;
+
     spawner.reset(_gameMode);
     riveBridge.setGameMode(_gameMode.riveValue);
     resetGame();
@@ -597,6 +720,22 @@ class GameController extends ChangeNotifier {
     _activeBales.clear();
     _stackedBales.clear();
     _notices.clear();
+
+    _isHoldingBurningBale = false;
+    _burningBaleTimer = 0.0;
+    _magnetTimer = 0.0;
+    _slowMoTimer = 0.0;
+    _frenzyTimer = 0.0;
+    _animalStampedeTimer = 0.0;
+    _crosswindTimer = 0.0;
+    _crosswindCooldown = 20.0;
+    _windStrength = 0.0;
+    _activeWaveEvent = WaveEventType.normal;
+    _consecutivePerfects = 0;
+    _orderCounter = 0;
+    _currentHarvestOrder = _gameMode == GameModeType.arcade
+        ? HarvestOrder.generateRandom(_orderCounter)
+        : null;
 
     spawner.reset(_gameMode);
     trailerPhysics.reset();
@@ -906,15 +1045,127 @@ class GameController extends ChangeNotifier {
       true,
     );
 
+    // 25% chance to trigger an Animal Stampede wave event in Arcade mode!
+    if (_gameMode == GameModeType.arcade && _random.nextDouble() < 0.25) {
+      _animalStampedeTimer = 10.0;
+      _activeWaveEvent = WaveEventType.animalStampede;
+      spawner.setWaveEvent(WaveEventType.animalStampede);
+      _addFloatingNotice('🐔 ANIMAL STAMPEDE! (10s)', 0.0, -0.2, true);
+    }
+
     notifyListeners();
+  }
+
+  /// Throws away the held burning bale out of the wagon into the meadow before it explodes!
+  void throwHeldBurningBale() {
+    if (!_isHoldingBurningBale) return;
+    _isHoldingBurningBale = false;
+    _burningBaleTimer = 0.0;
+
+    // Spawn a high flying thrown-away burning bale trajectory out into the distance
+    final tossed = StrawBale(
+      id: 'thrown_burning_${DateTime.now().microsecondsSinceEpoch}',
+      objectType: ThrownObjectType.burningBale,
+      startPos: Vector3(_playerX, playerY + 0.6, _playerZ),
+      targetPos: Vector3(_playerX * 2.5, 0.2, -6.5),
+      arcHeight: 2.8,
+      flightDuration: 0.95,
+      angularVelocity: Vector3(8.0, 5.0, 6.0),
+    );
+    tossed.state = BaleState.thrownAway;
+    tossed.missedDisplayTimer = 0.85;
+    tossed.tumbleVelocity = Vector3(
+      (_random.nextDouble() - 0.5) * 2.2,
+      5.4,
+      -5.0,
+    );
+    _activeBales.add(tossed);
+
+    _score += 150;
+    if (_score > _highScore) _highScore = _score;
+    AudioHapticsService.triggerCatchHaptic();
+    _addFloatingNotice('🔥 THROWN AWAY! +150', _playerX, -0.3, true);
+
+    _advanceHarvestOrder(HarvestOrderType.firefighter);
+    notifyListeners();
+  }
+
+  /// Clears all stacked bales in the given (col, row) cell due to fire damage,
+  /// triggers screen shake, and returns the number of bales destroyed.
+  int _burnCellBales(int col, int row) {
+    final int countBefore = getCellCount(col, row);
+    _stackedBales.removeWhere((b) => b.column == col && b.depthRow == row);
+    AudioHapticsService.playStunSound();
+    AudioHapticsService.triggerStunHaptic();
+    _screenShake = math.max(_screenShake, 0.75);
+    _damageFlash = 1.0;
+    return countBefore;
+  }
+
+  /// Advances progress on the current active harvest order, rewarding points and health if completed.
+  void _advanceHarvestOrder(HarvestOrderType type, [int amount = 1]) {
+    final order = _currentHarvestOrder;
+    if (order == null || order.type != type || order.isCompleted) return;
+
+    order.progress = math.min(order.target, order.progress + amount);
+    if (order.isCompleted) {
+      _score += order.rewardPoints;
+      if (_score > _highScore) _highScore = _score;
+      if (order.rewardHealth > 0.0) {
+        _health = math.min(100.0, _health + order.rewardHealth);
+        riveBridge.setHealth(_health);
+      }
+      AudioHapticsService.triggerSpecialHaptic();
+      _addFloatingNotice('📋 ORDER COMPLETE! +${order.rewardPoints}', 0.0, -0.25, true);
+
+      // Generate next random order
+      _orderCounter++;
+      _currentHarvestOrder = HarvestOrder.generateRandom(_orderCounter);
+    }
   }
 
   /// Handles game mechanics on successful bale or animal catch in the 3x3x5 wagon grid.
   void _executeSuccessfulCatch(StrawBale bale, bool isPerfect) {
-    // If the player caught a farm animal (chicken, rooster, duck, sheep, cow, cat, dog, bird):
-    // Record its caught stat, apply short-duration stun, and let it hop away!
+    // 1. If player caught a burning bale (Hot Potato mode!):
+    if (bale.objectType == ThrownObjectType.burningBale) {
+      bale.state = BaleState.caught;
+      _isHoldingBurningBale = true;
+      _burningBaleTimer = maxBurningHoldDuration;
+      _incomingPopupTimer = 0.0;
+      AudioHapticsService.triggerSpecialHaptic();
+      _addFloatingNotice('🔥 HOT POTATO! THROW! (3s)', _playerX, -0.35, true, isDamage: true);
+      _recordObjectCaught(bale.objectType);
+      notifyListeners();
+      return;
+    }
+
+    // 2. If the player caught a farm animal (chicken, rooster, duck, sheep, cow, cat, dog, bird):
     if (bale.objectType.isAnimal) {
       _handleAnimalCaught(bale);
+      return;
+    }
+
+    // 3. If Magnet Power-Up:
+    if (bale.objectType == ThrownObjectType.magnetPowerUp) {
+      bale.state = BaleState.caught;
+      _magnetTimer = 6.0;
+      _incomingPopupTimer = 0.0;
+      _recordObjectCaught(bale.objectType);
+      AudioHapticsService.triggerSpecialHaptic();
+      _addFloatingNotice('🧲 MAGNET ACTIVE (6s)!', _playerX, -0.3, true);
+      notifyListeners();
+      return;
+    }
+
+    // 4. If Slow-Mo Power-Up:
+    if (bale.objectType == ThrownObjectType.slowMoPowerUp) {
+      bale.state = BaleState.caught;
+      _slowMoTimer = 5.0;
+      _incomingPopupTimer = 0.0;
+      _recordObjectCaught(bale.objectType);
+      AudioHapticsService.triggerSpecialHaptic();
+      _addFloatingNotice('⏳ SLOW-MO ACTIVE (5s)!', _playerX, -0.3, true);
+      notifyListeners();
       return;
     }
 
@@ -959,7 +1210,7 @@ class GameController extends ChangeNotifier {
       _organizeAlertTimer = 2.0;
       _organizeAlertRemaining = remainingCutscene;
     }
-    _recordObjectCaught(ThrownObjectType.bale);
+    _recordObjectCaught(bale.objectType);
 
     // Increment combo
     _comboCount++;
@@ -973,11 +1224,52 @@ class GameController extends ChangeNotifier {
       _comboMultiplier = 1;
     }
 
-    final basePoints = isPerfect ? 150 : 100;
-    final points = basePoints * _comboMultiplier;
+    if (_comboCount >= 2) {
+      _addFloatingNotice('🔥 $_comboCount STREAK! (${_comboMultiplier}x)', playerX, 0.45, true);
+    }
+
+    // Trigger Frenzy Time when combo hits 10+ in Arcade mode!
+    if (_comboCount >= 10 &&
+        _activeWaveEvent == WaveEventType.normal &&
+        _gameMode == GameModeType.arcade) {
+      _activeWaveEvent = WaveEventType.frenzy;
+      _frenzyTimer = 8.0;
+      spawner.setWaveEvent(WaveEventType.frenzy);
+      _addFloatingNotice('🌪️ FRENZY TIME! 2x PTS', 0.0, -0.2, true);
+    }
+
+    // Clutch / Perfect catch combo tracking
+    if (isPerfect) {
+      _consecutivePerfects++;
+      if (_consecutivePerfects >= 5) {
+        _consecutivePerfects = 0;
+        autoBalanceStack();
+        _addFloatingNotice('⚡ 5x PERFECT! AUTO-BALANCED!', 0.0, -0.2, true);
+      }
+    } else {
+      _consecutivePerfects = 0;
+    }
+
+    final bool isGolden = bale.objectType == ThrownObjectType.goldenBale;
+    final int basePoints = isGolden ? 250 : (isPerfect ? 150 : 100);
+    final double atmMult = atmosphereMultiplier;
+    final int frenzyMult = isFrenzyActive ? 2 : 1;
+    final int points = (basePoints * _comboMultiplier * atmMult * frenzyMult).round();
     _score += points;
     if (_score > _highScore) {
       _highScore = _score;
+    }
+
+    if (isGolden) {
+      _health = math.min(100.0, _health + 20.0);
+      riveBridge.setHealth(_health);
+      _advanceHarvestOrder(HarvestOrderType.goldenHunter);
+    }
+
+    _advanceHarvestOrder(HarvestOrderType.cleanHands);
+    if (placeRow == 0) _advanceHarvestOrder(HarvestOrderType.frontRowRush);
+    if (_comboMultiplier >= 5 || _comboCount >= 5) {
+      _advanceHarvestOrder(HarvestOrderType.comboMaster);
     }
 
     AudioHapticsService.playCatchSound();
@@ -987,8 +1279,10 @@ class GameController extends ChangeNotifier {
     // Stack the caught bale into the 3x3x5 grid at (placeCol, placeRow, placeTier)
     _placeBaleInWagon(bale, placeCol, placeRow, placeTier);
 
-    final noticeText = wasSpillover ? '+$points (SPILLOVER)' : '+$points';
-    _addFloatingNotice(noticeText, _playerX, -0.3, isPerfect);
+    final noticeText = isGolden
+        ? '🌟 GOLDEN +$points'
+        : (wasSpillover ? '+$points (SPILLOVER)' : '+$points');
+    _addFloatingNotice(noticeText, _playerX, -0.3, isPerfect || isGolden);
 
     // Check Victory Condition: Full 3x3x5 Wagon (45 Bales) or Quota Met!
     if (_stackedBales.length >= maxWagonCapacity) {
@@ -1052,6 +1346,7 @@ class GameController extends ChangeNotifier {
       zOffset: cellZ,
       tiltAngle: trailerPhysics.tiltAngle,
       colorHueVariation: bale.colorHueVariation,
+      isGolden: bale.objectType == ThrownObjectType.goldenBale,
     );
 
     _stackedBales.add(stacked);
@@ -1194,6 +1489,12 @@ class GameController extends ChangeNotifier {
     _lastDamageTaken = 25;
     _damageFlash = 1.0;
     riveBridge.setHealth(_health);
+
+    if (bale.objectType == ThrownObjectType.burningBale) {
+      _burnCellBales(currentPlayerColumn, currentPlayerDepthRow);
+      _score = math.max(0, _score - 250);
+      _addFloatingNotice('🔥 BURNED ON IMPACT! -250 PTS', _playerX, -0.35, true, isDamage: true);
+    }
 
     AudioHapticsService.playStunSound();
     AudioHapticsService.triggerStunHaptic();
@@ -1355,6 +1656,59 @@ class GameController extends ChangeNotifier {
       _organizeAlertTimer = math.max(0.0, _organizeAlertTimer - dt);
     }
 
+    // 4c. Update Burning Bale Hot Potato timer
+    if (_isHoldingBurningBale) {
+      _burningBaleTimer -= dt;
+      if (_burningBaleTimer <= 0.0) {
+        _isHoldingBurningBale = false;
+        _burningBaleTimer = 0.0;
+        final burned = _burnCellBales(currentPlayerColumn, currentPlayerDepthRow);
+        final int penalty = 150 + (burned * 50);
+        _score = math.max(0, _score - penalty);
+        _applyMissedBaleDamage('💥 EXPLODED! -$penalty PTS', _playerX);
+        _isStunned = true;
+        _stunTimer = 1.0;
+      }
+    }
+
+    // 4d. Update Power-Up & Wave Event timers
+    if (_magnetTimer > 0.0) _magnetTimer = math.max(0.0, _magnetTimer - dt);
+    if (_slowMoTimer > 0.0) _slowMoTimer = math.max(0.0, _slowMoTimer - dt);
+    if (_frenzyTimer > 0.0) {
+      _frenzyTimer = math.max(0.0, _frenzyTimer - dt);
+      if (_frenzyTimer <= 0.0 && _activeWaveEvent == WaveEventType.frenzy) {
+        _activeWaveEvent = WaveEventType.normal;
+        spawner.setWaveEvent(WaveEventType.normal);
+      }
+    }
+    if (_animalStampedeTimer > 0.0) {
+      _animalStampedeTimer = math.max(0.0, _animalStampedeTimer - dt);
+      if (_animalStampedeTimer <= 0.0 && _activeWaveEvent == WaveEventType.animalStampede) {
+        _activeWaveEvent = WaveEventType.normal;
+        spawner.setWaveEvent(WaveEventType.normal);
+      }
+    }
+    if (_crosswindTimer > 0.0) {
+      _crosswindTimer = math.max(0.0, _crosswindTimer - dt);
+      if (_crosswindTimer <= 0.0 && _activeWaveEvent == WaveEventType.crosswind) {
+        _activeWaveEvent = WaveEventType.normal;
+        _windStrength = 0.0;
+        spawner.setWaveEvent(WaveEventType.normal);
+      }
+    } else if (_wagonsCompleted >= 2 &&
+        _activeWaveEvent == WaveEventType.normal &&
+        _gameMode == GameModeType.arcade) {
+      _crosswindCooldown -= dt;
+      if (_crosswindCooldown <= 0.0) {
+        _crosswindCooldown = 32.0;
+        _crosswindTimer = 12.0;
+        _windStrength = _random.nextBool() ? 1.0 : -1.0;
+        _activeWaveEvent = WaveEventType.crosswind;
+        spawner.setWaveEvent(WaveEventType.crosswind, wind: _windStrength);
+        _addFloatingNotice(_windStrength > 0 ? '💨 WIND >>>' : '<<< WIND 💨', 0.0, -0.2, true);
+      }
+    }
+
     // 5. Update trailer physics and sync to Rive
     trailerPhysics.update(dt, _gameMode == GameModeType.puzzle);
     riveBridge.setTrailerWobble(trailerPhysics.wobbleIntensity);
@@ -1394,12 +1748,13 @@ class GameController extends ChangeNotifier {
       _incomingPopupTimer = 1.8;
     }
 
-    // 7. Update in-flight and missed/overflow bales
+    // 7. Update in-flight and missed/overflow bales (with slow-mo multiplier if active)
+    final double baleDt = _slowMoTimer > 0.0 ? dt * 0.5 : dt;
     for (final bale in _activeBales) {
-      bale.update(dt);
+      bale.update(baleDt);
     }
 
-    // 7b. Automatic Hands-Zone Catch in 3D (X, Z) when farmer is aligned with target cell
+    // 7b. Automatic Hands-Zone Catch in 3D (X, Z) when farmer is aligned with target cell (+ Magnet pull)
     if (!_isStunned) {
       for (final bale in _activeBales) {
         if (bale.state != BaleState.inFlight) continue;
@@ -1411,6 +1766,12 @@ class GameController extends ChangeNotifier {
             bale.gridCol == currentPlayerColumn &&
             bale.gridRow == currentPlayerDepthRow;
 
+        // Magnet Power-Up effect: draws stackable bales within wider radius
+        final bool isMagnetPulled = _magnetTimer > 0.0 &&
+            bale.objectType.isBaleLike &&
+            dist3D <= 1.25 &&
+            bale.progress >= 0.70;
+
         if (_catchBufferTimer > 0.0 &&
             bale.progress >= 0.58 &&
             dist3D <= 0.90) {
@@ -1419,11 +1780,17 @@ class GameController extends ChangeNotifier {
           break;
         }
 
+        if (isMagnetPulled) {
+          _executeSuccessfulCatch(bale, true);
+          break;
+        }
+
         if (autoCatchEnabled &&
             bale.progress >= 0.76 &&
             bale.progress < 0.96 &&
             (sameGridCell || dist3D <= 0.60)) {
-          _executeSuccessfulCatch(bale, dist3D <= 0.30 || sameGridCell);
+          final bool isClutch = bale.progress >= 0.82;
+          _executeSuccessfulCatch(bale, isClutch || dist3D <= 0.30 || sameGridCell);
           break;
         }
       }
@@ -1441,7 +1808,35 @@ class GameController extends ChangeNotifier {
       if (event.outcome == CollisionOutcomeType.stunned) {
         _handleStunPenalty(event.bale);
       } else if (event.outcome == CollisionOutcomeType.missedFloor) {
-        if (event.bale.objectType.isAnimal) {
+        if (event.bale.objectType == ThrownObjectType.burningBale) {
+          // Burning bale landed uncaught on the wagon floor:
+          // It scorches the cell and burns all stacked bales in it!
+          final int tCol = event.bale.gridCol ?? 1;
+          final int tRow = event.bale.gridRow ?? 1;
+          final int burnedCount = _burnCellBales(tCol, tRow);
+
+          event.bale.state = BaleState.burnedCell;
+          event.bale.missedDisplayTimer = 0.85;
+          event.bale.currentPos.setValues(
+            event.bale.targetPos.x,
+            BaleSpawner.wagonFloorY + 0.18,
+            event.bale.targetPos.z,
+          );
+
+          final int penalty = 150 + (burnedCount * 50);
+          _score = math.max(0, _score - penalty);
+          _comboCount = 0;
+          _comboMultiplier = 1;
+          _addFloatingNotice(
+            burnedCount > 0
+                ? '🔥 BURNED $burnedCount BALES! -$penalty PTS'
+                : '🔥 SCORCHED! -$penalty PTS',
+            event.bale.targetPos.x,
+            -0.35,
+            true,
+            isDamage: true,
+          );
+        } else if (event.bale.objectType.isAnimal) {
           // Farm animal landed on the wagon floor uncaught:
           // It immediately runs/hops away off the wagon without hurting player health!
           _startAnimalEscapeOnWagon(event.bale);
@@ -1466,7 +1861,13 @@ class GameController extends ChangeNotifier {
           );
 
           if (!wasTargetCellFull) {
-            _applyMissedBaleDamage('-15 HP', event.bale.targetPos.x);
+            if (_activeWaveEvent == WaveEventType.frenzy) {
+              // During Frenzy wave, missed bales do not deduct health!
+              AudioHapticsService.triggerCatchHaptic();
+              _addFloatingNotice('FRENZY (NO DAMAGE)', event.bale.targetPos.x, -0.35, false);
+            } else {
+              _applyMissedBaleDamage('-15 HP', event.bale.targetPos.x);
+            }
           } else {
             // Target was already full (5/5) - bounce off without unfair penalty!
             AudioHapticsService.triggerCatchHaptic();
@@ -1482,6 +1883,8 @@ class GameController extends ChangeNotifier {
         b.state == BaleState.stunHit ||
         ((b.state == BaleState.missed ||
                 b.state == BaleState.escaping ||
+                b.state == BaleState.thrownAway ||
+                b.state == BaleState.burnedCell ||
                 b.state == BaleState.overflowOutside ||
                 b.state == BaleState.overflowInside) &&
             b.missedDisplayTimer <= 0.0));

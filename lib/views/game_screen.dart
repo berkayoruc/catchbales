@@ -4,6 +4,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:provider/provider.dart';
 import 'package:vector_math/vector_math_64.dart' hide Colors;
 import '../controllers/game_controller.dart';
+import '../models/bale.dart';
 import '../models/stack_slot.dart';
 import '../physics/bale_spawner.dart';
 import '../physics/camera_3d.dart';
@@ -282,6 +283,31 @@ class _GameScreenState extends State<GameScreen>
                           ),
                   ),
 
+                  // 4b. Non-clickable Incoming Object Banner at Bottom ("Gelen Obje")
+                  // Rendered AFTER TouchControlsOverlay with higher z-index, positioned cleanly above the 3x3 touch grid!
+                  if (!game.isGameOver && !game.isCutsceneActive)
+                    Positioned(
+                      bottom: MediaQuery.paddingOf(context).bottom + 106,
+                      left: 16,
+                      right: 16,
+                      child: IgnorePointer(
+                        ignoring: true, // Non-clickable so player control is 100% preserved
+                        child: Center(
+                          child:
+                              _buildBottomIncomingObjectBanner(context, game),
+                        ),
+                      ),
+                    ),
+
+                  // 4c. Emergency Hot Potato "THROW AWAY!" Button when holding Burning Bale
+                  if (game.isHoldingBurningBale && !game.isGameOver)
+                    Positioned(
+                      bottom: MediaQuery.paddingOf(context).bottom + 154,
+                      left: 20,
+                      right: 20,
+                      child: _buildThrowBurningBaleButton(game),
+                    ),
+
                   // 5. Interactive How-To-Play Onboarding Overlay (for First-Time Players or Help Button)
                   if (game.isTutorialActive && !game.isGameOver)
                     Positioned.fill(
@@ -484,5 +510,242 @@ class _GameScreenState extends State<GameScreen>
           ),
         ),
       );
+  }
+
+  Widget _buildThrowBurningBaleButton(GameController game) {
+    final double ratio =
+        (game.burningBaleTimer / GameController.maxBurningHoldDuration)
+            .clamp(0.0, 1.0);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => game.throwHeldBurningBale(),
+        borderRadius: BorderRadius.circular(26),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFF3B30),
+                Color(0xFFFF9500),
+                Color(0xFFFFCC00),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF3B30).withValues(alpha: 0.75),
+                blurRadius: 22,
+                spreadRadius: 3,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.local_fire_department_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '🔥 THROW AWAY!',
+                    style: TextStyle(
+                      fontFamily: FarmTheme.displayFontFamily,
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${game.burningBaleTimer.toStringAsFixed(1)}s',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: ratio,
+                  minHeight: 6,
+                  backgroundColor: Colors.black26,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Non-clickable Incoming Object Banner at Bottom:
+  /// Announces in-flight bales / animals / power-ups clearly with emoji and localized text.
+  /// 100% click-through (IgnorePointer) so player steering and catches are never obstructed.
+  Widget _buildBottomIncomingObjectBanner(
+    BuildContext context,
+    GameController game,
+  ) {
+    final type = game.currentIncomingType;
+    if (type == null) {
+      return const SizedBox.shrink();
+    }
+
+    final bool isTr = Localizations.localeOf(context).languageCode == 'tr';
+    final bool isAnimal = type.isAnimal;
+    final bool isBurning = type == ThrownObjectType.burningBale;
+    final bool isGolden = type == ThrownObjectType.goldenBale;
+    final bool isPowerUp = type.isPowerUp;
+
+    final Color bgColor;
+    final Color borderColor;
+    final Color shadowColor;
+    final String labelText;
+    final String? badgeText;
+
+    if (isBurning) {
+      bgColor = const Color(0xFFC62828);
+      borderColor = const Color(0xFFFF5722);
+      shadowColor = const Color(0xFFFF3D00);
+      labelText = isTr ? 'YANMIŞ BALYA GELİYOR!' : 'BURNING BALE INCOMING!';
+      badgeText = isTr ? '3s FIRLAT!' : '3s THROW!';
+    } else if (isGolden) {
+      bgColor = const Color(0xFFF57F17);
+      borderColor = const Color(0xFFFFD54F);
+      shadowColor = const Color(0xFFFFD700);
+      labelText = isTr ? 'ALTIN BALYA GELİYOR!' : 'GOLDEN BALE INCOMING!';
+      badgeText = isTr ? '+250 PUAN' : '+250 PTS';
+    } else if (isPowerUp) {
+      bgColor = const Color(0xFF00695C);
+      borderColor = const Color(0xFF80CBC4);
+      shadowColor = const Color(0xFF00E5FF);
+      labelText = isTr
+          ? '${type.displayNameTr.toUpperCase()} GELİYOR!'
+          : '${type.displayNameEn.toUpperCase()} INCOMING!';
+      badgeText = isTr ? 'GÜÇLENDİRME' : 'POWER-UP';
+    } else if (isAnimal) {
+      bgColor = const Color(0xFF4E342E);
+      borderColor = const Color(0xFFFFB74D);
+      shadowColor = const Color(0xFFFF9800);
+      labelText = isTr
+          ? '${type.displayNameTr.toUpperCase()} GELİYOR!'
+          : '${type.displayNameEn.toUpperCase()} INCOMING!';
+      badgeText = isTr ? 'SERSEMLETME RİSKİ' : 'STUN RISK';
+    } else {
+      bgColor = const Color(0xFF1B2834);
+      borderColor = FarmTheme.sunWarmYellow;
+      shadowColor = const Color(0xFFF4B942).withValues(alpha: 0.35);
+      labelText = isTr ? 'SAMAN BALYASI GELİYOR' : 'STRAW BALE INCOMING';
+      badgeText = null;
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      transitionBuilder: (child, animation) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.0, 0.45),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+          )),
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        key: ValueKey('bottom_incoming_${type.name}'),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: bgColor.withValues(alpha: 0.96),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: borderColor,
+            width: 1.8,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: shadowColor.withValues(alpha: 0.60),
+              blurRadius: 14,
+              spreadRadius: 2,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              type.emoji,
+              style: const TextStyle(fontSize: 15),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              labelText,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+            if (badgeText != null) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  badgeText,
+                  style: TextStyle(
+                    color: isBurning
+                        ? Colors.amberAccent
+                        : (isGolden
+                            ? Colors.white
+                            : (isAnimal
+                                ? Colors.yellowAccent
+                                : const Color(0xFF80D8FF))),
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }

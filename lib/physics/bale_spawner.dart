@@ -4,6 +4,14 @@ import '../models/bale.dart';
 import '../models/game_mode.dart';
 import '../models/stack_slot.dart';
 
+/// Dynamic wave events altering spawn rhythms and atmospheric behaviors.
+enum WaveEventType {
+  normal,
+  frenzy,
+  animalStampede,
+  crosswind,
+}
+
 /// Handles spawning and 3D ballistic trajectory generation of straw bales
 /// emerging from the baler chute toward the 3x3x5 rear wagon grid.
 /// Coordinates are synchronized with the -55° Pitch, 45° FOV 3D Camera.
@@ -31,6 +39,8 @@ class BaleSpawner {
   double _currentSpawnInterval = 2.2; // seconds
   int _baleCounter = 0;
   ThrownObjectType _nextUpcomingType = ThrownObjectType.bale;
+  WaveEventType _activeWave = WaveEventType.normal;
+  double _windStrength = 0.0;
 
   static const List<ThrownObjectType> animalTypes = [
     ThrownObjectType.chicken,
@@ -45,19 +55,69 @@ class BaleSpawner {
 
   double get currentSpawnInterval => _currentSpawnInterval;
   ThrownObjectType get nextUpcomingType => _nextUpcomingType;
+  WaveEventType get activeWave => _activeWave;
+  double get windStrength => _windStrength;
 
-  void _pickNextUpcomingType() {
-    _nextUpcomingType = (_baleCounter > 0 && _random.nextDouble() < 0.30)
-        ? animalTypes[_random.nextInt(animalTypes.length)]
-        : ThrownObjectType.bale;
+  void setWaveEvent(WaveEventType wave, {double wind = 0.0}) {
+    _activeWave = wave;
+    _windStrength = wind;
+  }
+
+  void _pickNextUpcomingType({GameModeType mode = GameModeType.arcade}) {
+    if (_baleCounter == 0) {
+      _nextUpcomingType = ThrownObjectType.bale;
+      return;
+    }
+
+    if (_activeWave == WaveEventType.frenzy) {
+      // Frenzy wave: 80% normal bales, 20% golden bales, NO animals or hazards!
+      _nextUpcomingType = _random.nextDouble() < 0.20
+          ? ThrownObjectType.goldenBale
+          : ThrownObjectType.bale;
+      return;
+    }
+
+    if (_activeWave == WaveEventType.animalStampede) {
+      // Animal stampede: 75% animals, 25% golden bales!
+      _nextUpcomingType = _random.nextDouble() < 0.25
+          ? ThrownObjectType.goldenBale
+          : animalTypes[_random.nextInt(animalTypes.length)];
+      return;
+    }
+
+    if (mode == GameModeType.puzzle) {
+      // Puzzle mode: 75% bales, 25% animals
+      _nextUpcomingType = _random.nextDouble() < 0.25
+          ? animalTypes[_random.nextInt(animalTypes.length)]
+          : ThrownObjectType.bale;
+      return;
+    }
+
+    // Arcade mode: diverse rich variety of special bales and power-ups
+    final double roll = _random.nextDouble();
+    if (roll < 0.12) {
+      _nextUpcomingType = ThrownObjectType.burningBale;
+    } else if (roll < 0.20) {
+      _nextUpcomingType = ThrownObjectType.goldenBale;
+    } else if (roll < 0.24) {
+      _nextUpcomingType = ThrownObjectType.magnetPowerUp;
+    } else if (roll < 0.28) {
+      _nextUpcomingType = ThrownObjectType.slowMoPowerUp;
+    } else if (roll < 0.52) {
+      _nextUpcomingType = animalTypes[_random.nextInt(animalTypes.length)];
+    } else {
+      _nextUpcomingType = ThrownObjectType.bale;
+    }
   }
 
   /// Resets spawner state for a fresh game round.
   void reset(GameModeType mode) {
     _timeSinceLastSpawn = 0.0;
     _baleCounter = 0;
+    _activeWave = WaveEventType.normal;
+    _windStrength = 0.0;
     _currentSpawnInterval = mode == GameModeType.arcade ? 2.6 : 3.0;
-    _pickNextUpcomingType();
+    _pickNextUpcomingType(mode: mode);
   }
 
   /// Updates spawn timer and optionally spawns a new bale if interval elapsed.
@@ -73,7 +133,11 @@ class BaleSpawner {
     if (mode == GameModeType.arcade) {
       // Gradually decrease interval from 2.6s down to 1.3s as score rises
       final difficultyFactor = (currentScore / 1800.0).clamp(0.0, 1.0);
-      _currentSpawnInterval = 2.6 - (difficultyFactor * 1.3);
+      double interval = 2.6 - (difficultyFactor * 1.3);
+      if (_activeWave == WaveEventType.frenzy) {
+        interval *= 0.55; // 2x faster storm of bales in Frenzy!
+      }
+      _currentSpawnInterval = interval;
     } else {
       // In Puzzle mode, keep a consistent paced rhythm
       _currentSpawnInterval = 3.0;
@@ -153,6 +217,7 @@ class BaleSpawner {
     );
     bale.gridCol = targetCol;
     bale.gridRow = targetRow;
+    bale.windDriftX = _windStrength;
     return bale;
   }
 

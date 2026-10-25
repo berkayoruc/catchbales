@@ -11,6 +11,7 @@ class StackedBale {
   final double zOffset;
   double tiltAngle;
   final double colorHueVariation;
+  final bool isGolden;
 
   StackedBale({
     required this.column,
@@ -21,6 +22,7 @@ class StackedBale {
     this.zOffset = -2.08,
     this.tiltAngle = 0.0,
     this.colorHueVariation = 0.0,
+    this.isGolden = false,
   });
 
   /// World Z coordinate for a given depthRow (0: Front, 1: Middle, 2: Back).

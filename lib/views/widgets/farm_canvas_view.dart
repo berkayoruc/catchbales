@@ -137,7 +137,14 @@ class FarmScene3DPainter extends CustomPainter {
     _drawFloatingNotices3D(canvas, cam);
   }
 
-  /// Draws the lush meadow, golden wheat fields on both sides, and continuous 3D perspective dirt road.
+  /// Draws the serene, continuous golden wheat farm diorama matching the reference aesthetic:
+  /// - Pastel mint-cyan sky and continuous vibrant diorama green lawn
+  /// - Continuous, unbroken golden wheat fields stretching to the horizon on Left and Right
+  /// - Central harvesting corridor:
+  ///   - Ahead of Baler (Z >= 4.25): UNHARVESTED FIELD (Hasat Edilmemiş Tarla)
+  ///     Calm, soft golden wheat cushions (pom-poms) and smooth tractor tramlines.
+  ///   - Behind Baler (Z < 4.25): HARVESTED STUBBLE FIELD (Hasat Edilmiş Tarla / Anız)
+  ///     Continuous smooth golden-straw stubble bed with soft tire tracks (NO choppy planks!).
   void _drawTerrainAndWheatFields(
     Canvas canvas,
     Size size,
@@ -145,344 +152,649 @@ class FarmScene3DPainter extends CustomPainter {
   ) {
     const double zFar = 28.0;
     const double zNear = -12.0;
+    const double balerCutZ = 4.25; // Boundary zone: Baler intake & cut area
+    const double corridorHalfWidth = 2.40; // Wider than trailer (trailer wheels at ±1.71)
 
-    // Base lush farm meadow gradient (richer emerald in distance, warm sunlit green in foreground)
+    // 1. Base diorama background: Pastel mint-cyan diorama sky transitioning into vibrant diorama lawn
     final Rect fullRect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final Paint meadowPaint = Paint()
+    final Paint dioramaBgPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Color(0xFF529416),
-          Color(0xFF74B31B),
-          Color(0xFF8AC926),
+          Color(0xFF98D7C2), // Pastel mint/cyan diorama sky (reference image backdrop!)
+          Color(0xFFBCEEE1), // Soft cyan tint
+          Color(0xFF67BF30), // Crisp vibrant diorama green grass
+          Color(0xFF5AA828), // Lush meadow lawn
         ],
-        stops: [0.0, 0.45, 1.0],
+        stops: [0.0, 0.22, 0.38, 1.0],
       ).createShader(fullRect);
-    canvas.drawRect(fullRect, meadowPaint);
+    canvas.drawRect(fullRect, dioramaBgPaint);
 
-    // Golden Wheat Fields on Left and Right (continuous from zFar to zNear)
-    _drawWheatFieldSide(canvas, cam, isLeft: true);
-    _drawWheatFieldSide(canvas, cam, isLeft: false);
+    // 2. Central Harvesting Corridor Ground Bases:
+    // 2a. UNIFIED AGRICULTURAL SOIL BED (Z: zNear to zFar) -> Continuous base ground
+    final pFarL = cam.project(Vector3(-corridorHalfWidth, 0.0, zFar)).screenOffset;
+    final pFarR = cam.project(Vector3(corridorHalfWidth, 0.0, zFar)).screenOffset;
+    final pNearR = cam.project(Vector3(corridorHalfWidth, 0.0, zNear)).screenOffset;
+    final pNearL = cam.project(Vector3(-corridorHalfWidth, 0.0, zNear)).screenOffset;
 
-    // Soft grassy road shoulder border (continuous from zFar = 22.0 to zNear = -9.0)
-    final pShoulderFarL = cam.project(Vector3(-2.18, 0.0, zFar)).screenOffset;
-    final pShoulderFarR = cam.project(Vector3(2.18, 0.0, zFar)).screenOffset;
-    final pShoulderNearR = cam.project(Vector3(2.18, 0.0, zNear)).screenOffset;
-    final pShoulderNearL = cam.project(Vector3(-2.18, 0.0, zNear)).screenOffset;
-
-    final Path shoulderPath = Path()
-      ..moveTo(pShoulderFarL.dx, pShoulderFarL.dy)
-      ..lineTo(pShoulderFarR.dx, pShoulderFarR.dy)
-      ..lineTo(pShoulderNearR.dx, pShoulderNearR.dy)
-      ..lineTo(pShoulderNearL.dx, pShoulderNearL.dy)
+    final Path fullCorridorPath = Path()
+      ..moveTo(pFarL.dx, pFarL.dy)
+      ..lineTo(pFarR.dx, pFarR.dy)
+      ..lineTo(pNearR.dx, pNearR.dy)
+      ..lineTo(pNearL.dx, pNearL.dy)
       ..close();
+
     canvas.drawPath(
-      shoulderPath,
-      Paint()..color = const Color(0xFF99B83C),
+      fullCorridorPath,
+      Paint()..color = const Color(0xFFC48E3A),
     );
 
-    // 3D Perspective Dirt Road from zFar = 22.0 to zNear = -9.0
-    final pFarLeft = cam.project(Vector3(-1.95, 0.0, zFar)).screenOffset;
-    final pFarRight = cam.project(Vector3(1.95, 0.0, zFar)).screenOffset;
-    final pNearRight = cam.project(Vector3(1.95, 0.0, zNear)).screenOffset;
-    final pNearLeft = cam.project(Vector3(-1.95, 0.0, zNear)).screenOffset;
+    // 2b. HARVESTED STUBBLE BED WITH SOFT GRADIENT CROSS-FADE (NO sharp cutline!)
+    // Smoothly transitions from dark soil under the baler to golden-tan straw bed behind it.
+    final pTransFarL = cam.project(Vector3(-corridorHalfWidth, 0.0, balerCutZ + 1.2)).screenOffset;
+    final pTransFarR = cam.project(Vector3(corridorHalfWidth, 0.0, balerCutZ + 1.2)).screenOffset;
+    final pTransCutCenter = cam.project(Vector3(0.0, 0.0, balerCutZ - 1.2)).screenOffset;
 
-    final Path roadPath = Path()
-      ..moveTo(pFarLeft.dx, pFarLeft.dy)
-      ..lineTo(pFarRight.dx, pFarRight.dy)
-      ..lineTo(pNearRight.dx, pNearRight.dy)
-      ..lineTo(pNearLeft.dx, pNearLeft.dy)
+    final Path stubbleBedPath = Path()
+      ..moveTo(pTransFarL.dx, pTransFarL.dy)
+      ..lineTo(pTransFarR.dx, pTransFarR.dy)
+      ..lineTo(pNearR.dx, pNearR.dy)
+      ..lineTo(pNearL.dx, pNearL.dy)
       ..close();
 
-    final Paint roadPaint = Paint()
+    final double topY = pTransFarL.dy;
+    final double bottomY = pNearL.dy;
+    final double midY = pTransCutCenter.dy;
+    final double stopMid = ((midY - topY) / (bottomY - topY)).clamp(0.04, 0.35);
+
+    final Paint stubbleFadePaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          const Color(0xFFB58B52),
-          FarmTheme.dirtPath,
-          const Color(0xFFCCA46B),
+          const Color(0xFFD6B265).withValues(alpha: 0.0), // Ahead of intake: soil shows through
+          const Color(0xFFD6B265).withValues(alpha: 0.55), // Under baler chassis: gentle blend
+          const Color(0xFFD6B265), // Behind baler: full golden-tan straw bed
+          const Color(0xFFD6B265), // Down to near foreground
         ],
-      ).createShader(fullRect);
-    canvas.drawPath(roadPath, roadPaint);
+        stops: [0.0, stopMid * 0.5, stopMid, 1.0],
+      ).createShader(Rect.fromLTRB(
+        -size.width,
+        topY,
+        size.width * 2,
+        bottomY,
+      ));
 
-    // Continuous 3D wheel ruts along the road
-    final Paint rutPaint = Paint()
-      ..color = FarmTheme.dirtPathDark.withValues(alpha: 0.36)
+    canvas.drawPath(stubbleBedPath, stubbleFadePaint);
+
+    // 3. AHEAD OF BALER: UNHARVESTED FIELD (Hasat Edilmemiş Tarla)
+    // TALL golden wheat sheaves tapering smoothly into the baler pickup intake!
+    const double unharvestedStep = 1.60;
+    final double unharvestedOffset = worldScrollZ % unharvestedStep;
+    final int baseUnharvestedIdx = (worldScrollZ / unharvestedStep).floor();
+
+    // 5 rows across the wider corridor (corridorHalfWidth = 2.40)
+    const List<double> tuftXOffsets = [-1.55, -0.78, 0.0, 0.78, 1.55];
+
+    for (int slot = 0; slot < 16; slot++) {
+      final double z = 27.5 - (slot * unharvestedStep + unharvestedOffset);
+      if (z < balerCutZ - 0.5) continue; // Tapers down into cut stubble under baler
+
+      final int worldRowIdx = baseUnharvestedIdx - slot;
+      final double sway = math.sin(animTime * 2.2 + worldRowIdx * 0.7) * 0.03;
+
+      // Natural height tapering as crop enters baler pickup drum (pz ≈ 4.35):
+      double cropScale = 1.45;
+      if (z < balerCutZ + 1.8) {
+        final double progress = ((z - (balerCutZ - 0.5)) / 2.3).clamp(0.0, 1.0);
+        final double smoothT = progress * progress * (3.0 - 2.0 * progress);
+        cropScale = 0.42 + (1.45 - 0.42) * smoothT;
+      }
+
+      for (final double tx in tuftXOffsets) {
+        _drawStylizedWheatTuft3D(
+          canvas,
+          cam,
+          center: Vector3(tx, 0.0, z),
+          scale: cropScale,
+          sway: sway,
+        );
+      }
+    }
+
+    // Rotating straw chaff & dust particles floating near pickup intake (pz = 4.35)
+    final Paint intakeChaffPaint = Paint()..color = const Color(0xFFFFD166).withValues(alpha: 0.60);
+    for (int i = 0; i < 6; i++) {
+      final double angle = animTime * 6.0 + i * (math.pi / 3.0);
+      final double cx = math.sin(angle) * 0.55;
+      final double cy = 0.22 + math.cos(angle) * 0.14;
+      final double cz = 4.35 + math.sin(angle * 1.5) * 0.25;
+      final pChaff = cam.project(Vector3(cx, cy, cz));
+      canvas.drawCircle(pChaff.screenOffset, 2.5 * pChaff.scale, intakeChaffPaint);
+    }
+
+    // Smooth, gentle tractor tramlines where wheels roll through standing crop
+    final Paint tramlinePaint = Paint()
+      ..color = const Color(0xFFA5742A).withValues(alpha: 0.40)
       ..strokeWidth = 3.2
       ..style = PaintingStyle.stroke;
 
-    for (final double tireTrackX in [-1.12, 1.12]) {
-      final trackFar = cam.project(Vector3(tireTrackX, 0.0, zFar)).screenOffset;
-      final trackNear = cam.project(Vector3(tireTrackX, 0.0, zNear)).screenOffset;
-      canvas.drawLine(trackFar, trackNear, rutPaint);
+    for (final double trackX in [-0.92, 0.92]) {
+      final pTramFar = cam.project(Vector3(trackX, 0.01, 8.2)).screenOffset;
+      final pTramCut = cam.project(Vector3(trackX, 0.01, balerCutZ)).screenOffset;
+      canvas.drawLine(pTramFar, pTramCut, tramlinePaint);
     }
 
-    // Regular, seamless scrolling road texture strips & pebbles (period = 1.4 world units)
-    const double roadStep = 1.4;
-    final double roadOffset = worldScrollZ % roadStep;
-    final int baseRoadIndex = (worldScrollZ / roadStep).floor();
+    // 4. BEHIND BALER: HARVESTED FIELD (Hasat Edilmiş Tarla / Anız)
+    // Continuous, smooth ground with two soft tire tracks (NO choppy horizontal planks!)
+    final Paint rutStubblePaint = Paint()
+      ..color = const Color(0xFF8D6227).withValues(alpha: 0.32)
+      ..strokeWidth = 3.6
+      ..style = PaintingStyle.stroke;
 
-    final Paint treadPaint = Paint()
-      ..color = FarmTheme.dirtPathDark.withValues(alpha: 0.25)
-      ..strokeWidth = 2.2;
-    final Paint pebblePaint = Paint()
-      ..color = FarmTheme.dirtPathDark.withValues(alpha: 0.44);
+    for (final double trackX in [-0.92, 0.92]) {
+      final trackFar = cam.project(Vector3(trackX, 0.01, balerCutZ)).screenOffset;
+      final trackNear = cam.project(Vector3(trackX, 0.01, zNear)).screenOffset;
+      canvas.drawLine(trackFar, trackNear, rutStubblePaint);
+    }
 
-    for (int slot = 0; slot < 26; slot++) {
-      final double z = 25.2 - (slot * roadStep + roadOffset);
-      final int worldIdx = (baseRoadIndex - slot).abs();
+    // Soft straw swath / windrow trailing down the center behind the baler
+    final Paint swathPaint = Paint()
+      ..color = const Color(0xFFC89A48).withValues(alpha: 0.32)
+      ..strokeWidth = 14.0
+      ..strokeCap = StrokeCap.round;
+    final pSwathFar = cam.project(Vector3(0.0, 0.012, balerCutZ - 0.3)).screenOffset;
+    final pSwathNear = cam.project(Vector3(0.0, 0.012, zNear)).screenOffset;
+    canvas.drawLine(pSwathFar, pSwathNear, swathPaint);
 
-      // Subtle tire-tread cross marks along both wheel tracks
-      for (final double trackX in [-1.12, 1.12]) {
-        final pL = cam.project(Vector3(trackX - 0.22, 0.01, z)).screenOffset;
-        final pR = cam.project(Vector3(trackX + 0.22, 0.01, z)).screenOffset;
-        canvas.drawLine(pL, pR, treadPaint);
+    // Soft, cute cut stubble rows trailing behind the baler
+    const double stubbleStep = 1.75;
+    final double stubbleOffset = worldScrollZ % stubbleStep;
+    for (int slot = 0; slot < 8; slot++) {
+      final double z = (balerCutZ - 0.7) - (slot * stubbleStep + stubbleOffset);
+      if (z < zNear) continue;
+      for (final double sx in [-1.55, -0.78, 0.78, 1.55]) {
+        _drawStylizedWheatTuft3D(
+          canvas,
+          cam,
+          center: Vector3(sx, 0.0, z),
+          scale: 0.36, // Cute, short cut stubble stalks!
+          sway: 0.0,
+        );
       }
+    }
 
-      // Deterministic road pebbles on left and right edges (never pop or switch sides)
-      final double pebbleLeftX = -1.52 + (worldIdx % 3) * 0.08;
-      final double pebbleRightX = 1.52 - ((worldIdx + 1) % 3) * 0.08;
-      for (final double px in [pebbleLeftX, pebbleRightX]) {
-        final proj = cam.project(Vector3(px, 0.01, z));
+    // Soft, sparse golden straw flecks on the harvested stubble (calm and subtle)
+    final Paint chaffPaint = Paint()..color = const Color(0xFFF7D070).withValues(alpha: 0.45);
+    for (int slot = 0; slot < 12; slot++) {
+      final double z = balerCutZ - 0.8 - (slot * 1.5 + (worldScrollZ % 1.5));
+      if (z < zNear) continue;
+      final double chaffX1 = -0.50 + ((slot * 3) % 5) * 0.25;
+      final double chaffX2 = 0.50 - (((slot + 2) * 3) % 5) * 0.25;
+
+      for (final double cx in [chaffX1, chaffX2]) {
+        final proj = cam.project(Vector3(cx, 0.015, z));
         canvas.drawOval(
           Rect.fromCenter(
             center: proj.screenOffset,
-            width: 14.0 * proj.scale,
-            height: 5.5 * proj.scale,
+            width: 7.0 * proj.scale,
+            height: 3.0 * proj.scale,
           ),
-          pebblePaint,
+          chaffPaint,
         );
       }
     }
   }
 
-  /// Draws continuous, regular 3D terraced golden wheat fields on Left and Right.
-  void _drawWheatFieldSide(
+  /// Draws a soft, plush, eye-calming 3D golden wheat sheaf matching the reference image.
+  /// (TALL, prominent crop height with golden stalk bundle and puffy golden head)
+  void _drawStylizedWheatTuft3D(
     Canvas canvas,
     Camera3DProjector cam, {
-    required bool isLeft,
+    required Vector3 center,
+    double scale = 1.0,
+    double sway = 0.0,
   }) {
-    const double zFar = 28.0;
-    const double zNear = -12.0;
-    final double innerX = isLeft ? -2.55 : 2.55;
-    final double outerX = isLeft ? -10.5 : 10.5;
-
-    final p1 = cam.project(Vector3(innerX, 0.0, zFar)).screenOffset;
-    final p2 = cam.project(Vector3(outerX, 0.0, zFar)).screenOffset;
-    final p3 = cam.project(Vector3(outerX, 0.0, zNear)).screenOffset;
-    final p4 = cam.project(Vector3(innerX, 0.0, zNear)).screenOffset;
-
-    // Golden soil bed under wheat
-    final Path fieldBase = Path()
-      ..moveTo(p1.dx, p1.dy)
-      ..lineTo(p2.dx, p2.dy)
-      ..lineTo(p3.dx, p3.dy)
-      ..lineTo(p4.dx, p4.dy)
-      ..close();
-
-    canvas.drawPath(
-      fieldBase,
-      Paint()..color = const Color(0xFFD4A338).withValues(alpha: 0.85),
+    // 1. Soft ground contact shadow
+    final projShadow = cam.projectShadow(center);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: projShadow.screenOffset,
+        width: 18.0 * scale * projShadow.scale,
+        height: 7.5 * scale * projShadow.scale,
+      ),
+      Paint()..color = Colors.black.withValues(alpha: 0.12),
     );
 
-    // Continuous, regular 3D golden wheat rows from z = 25.6 down to z = -11.2 (step = 1.6)
-    const double wheatStep = 1.6;
-    final double wheatOffset = worldScrollZ % wheatStep;
-    final int baseWheatIdx = (worldScrollZ / wheatStep).floor();
-
-    final double xStart = isLeft ? -2.75 : 2.75;
-    final double xEnd = isLeft ? -7.2 : 7.2;
-    final double minX = math.min(xStart, xEnd);
-    final double maxX = math.max(xStart, xEnd);
-
-    for (int slot = 0; slot < 23; slot++) {
-      final double z = 25.6 - (slot * wheatStep + wheatOffset);
-      final int worldRowIdx = baseWheatIdx - slot;
-      final double sway = math.sin(animTime * 2.2 + worldRowIdx * 0.7) * 0.05;
-
-      _drawExtruded3DBox(
-        canvas,
-        cam,
-        minCorner: Vector3(minX, 0.0, z - 0.30),
-        maxCorner: Vector3(maxX + sway, 0.34, z + 0.30),
-        baseColor: const Color(0xFFF4B942),
-        topHighlightColor: const Color(0xFFFFE082),
-      );
-    }
-  }
-
-  /// Draws continuous, regular 3D wooden fences and low-poly roadside trees
-  /// on both Left and Right sides from far horizon (+Z) to near foreground (-Z).
-  void _drawEnvironmentProps3D(Canvas canvas, Camera3DProjector cam) {
-    // 1. Continuous 3D Wooden Fence Rails & Posts on Left (-2.22) and Right (+2.22)
-    const double fenceStep = 2.0;
-    final double fenceOffset = worldScrollZ % fenceStep;
-
-    for (final double fenceX in [-2.22, 2.22]) {
-      // Slots 0..18 go strictly from far Z (26.0) to near Z (-10.0) -> Painter's order!
-      for (int slot = 0; slot < 19; slot++) {
-        final double zPost = 26.0 - (slot * fenceStep + fenceOffset);
-        final double zNext = zPost + fenceStep;
-
-        // Soft shadow of rails on ground
-        final s1 = cam.projectShadow(Vector3(fenceX, 0.55, zPost)).screenOffset;
-        final s2 = cam.projectShadow(Vector3(fenceX, 0.55, zNext)).screenOffset;
-        canvas.drawLine(
-          s1,
-          s2,
-          Paint()
-            ..color = Colors.black.withValues(alpha: 0.18)
-            ..strokeWidth = 5.0
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0),
-        );
-
-        // Lower 3D wooden rail (Y: 0.24..0.34)
-        _drawExtruded3DBox(
-          canvas,
-          cam,
-          minCorner: Vector3(fenceX - 0.04, 0.24, zPost),
-          maxCorner: Vector3(fenceX + 0.04, 0.34, zNext),
-          baseColor: FarmTheme.wagonWoodLight,
-        );
-
-        // Upper 3D wooden rail (Y: 0.52..0.62)
-        _drawExtruded3DBox(
-          canvas,
-          cam,
-          minCorner: Vector3(fenceX - 0.04, 0.52, zPost),
-          maxCorner: Vector3(fenceX + 0.04, 0.62, zNext),
-          baseColor: FarmTheme.wagonWoodLight,
-        );
-
-        // 3D Vertical Fence Post at zPost (Y: 0.0..0.78)
-        _drawSoftGroundShadow(
-          canvas,
-          cam,
-          worldCenter: Vector3(fenceX, 0.4, zPost),
-          radiusX: 0.18,
-          radiusZ: 0.18,
-          receiverY: 0.0,
-        );
-        _drawExtruded3DBox(
-          canvas,
-          cam,
-          minCorner: Vector3(fenceX - 0.08, 0.0, zPost - 0.08),
-          maxCorner: Vector3(fenceX + 0.08, 0.78, zPost + 0.08),
-          baseColor: FarmTheme.wagonWoodDark,
-          topHighlightColor: const Color(0xFFD4A373),
-        );
-      }
-    }
-
-    // 2. Continuous, Regular Low-Poly 3D Trees on BOTH Left (-3.12) and Right (+3.12)
-    // Slots 0..14 go strictly from far Z (26.0) down to near Z (-10.4) with fixed step = 2.6.
-    // Each tree's identity (`worldTreeIdx`) moves with the tree so it NEVER pops or switches sides!
-    const double treeStep = 2.6;
-    final double treeOffset = worldScrollZ % treeStep;
-    final int baseTreeIdx = (worldScrollZ / treeStep).floor();
-
-    for (int slot = 0; slot < 15; slot++) {
-      final double z = 26.0 - (slot * treeStep + treeOffset);
-      final int worldTreeIdx = (baseTreeIdx - slot).abs();
-
-      // Left Roadside Tree
-      _drawLowPolyTree3D(
-        canvas,
-        cam,
-        basePos: Vector3(-3.12, 0.0, z),
-        heightScale: 1.0 + (worldTreeIdx % 2) * 0.08,
-        isWarmAutumnTint: worldTreeIdx % 4 == 0,
-      );
-
-      // Right Roadside Tree (regularly paired on the right side)
-      _drawLowPolyTree3D(
-        canvas,
-        cam,
-        basePos: Vector3(3.12, 0.0, z),
-        heightScale: 1.0 + ((worldTreeIdx + 1) % 2) * 0.08,
-        isWarmAutumnTint: (worldTreeIdx + 2) % 4 == 0,
-      );
-    }
-  }
-
-  /// Renders a multi-tiered 3D Low-Poly Tree with faceted directional lighting and ground shadow.
-  void _drawLowPolyTree3D(
-    Canvas canvas,
-    Camera3DProjector cam, {
-    required Vector3 basePos,
-    double heightScale = 1.0,
-    bool isWarmAutumnTint = false,
-  }) {
-    // 1. Soft directional ground shadow
-    _drawSoftGroundShadow(
-      canvas,
-      cam,
-      worldCenter: Vector3(basePos.x, 0.9 * heightScale, basePos.z),
-      radiusX: 0.65 * heightScale,
-      radiusZ: 0.55 * heightScale,
-      receiverY: 0.0,
-    );
-
-    // 2. 3D Wooden Tree Trunk
+    // 2. Tall Golden Straw Stalk Sheaf rising from ground up to crop head (increased height!)
+    final double stalkHeight = 0.40 * scale;
     _drawExtruded3DBox(
       canvas,
       cam,
-      minCorner: Vector3(basePos.x - 0.14, 0.0, basePos.z - 0.14),
-      maxCorner: Vector3(basePos.x + 0.14, 0.65 * heightScale, basePos.z + 0.14),
-      baseColor: const Color(0xFF7F4F24),
+      minCorner: Vector3(center.x - 0.12 * scale, center.y, center.z - 0.12 * scale),
+      maxCorner: Vector3(center.x + 0.12 * scale + sway * 0.4, center.y + stalkHeight, center.z + 0.12 * scale),
+      baseColor: const Color(0xFFDF9B24),
+      topHighlightColor: const Color(0xFFF7C844),
     );
 
-    // 3. Three stacked 3D Low-Poly Pyramid/Cone Foliage Tiers
-    final Color baseLeaf = isWarmAutumnTint
-        ? const Color(0xFFE09F3E)
-        : const Color(0xFF4F9D22);
-    final Color sunlitLeaf = cam.shadeColor(baseLeaf, _normalLeft);
-    final Color midLeaf = cam.shadeColor(baseLeaf, _normalFront);
-    final Color shadedLeaf = cam.shadeColor(baseLeaf, _normalRight);
+    // 3. Voluminous Puffy Golden Head sitting proudly on top of the stalks
+    final double headY = center.y + stalkHeight + 0.10 * scale;
+    final projBase = cam.project(Vector3(center.x + sway, headY, center.z));
+    final double coreRadius = 11.5 * scale * projBase.scale;
+    final Offset coreCenter = projBase.screenOffset;
 
-    for (int tier = 0; tier < 3; tier++) {
-      final double yBottom = (0.50 + tier * 0.52) * heightScale;
-      final double yTop = yBottom + (0.78 - tier * 0.10) * heightScale;
-      final double radius = (0.62 - tier * 0.13) * heightScale;
+    canvas.drawCircle(
+      coreCenter,
+      coreRadius,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.25, -0.30),
+          colors: const [
+            Color(0xFFFFD13B), // Radiant warm yellow
+            Color(0xFFF5A623), // Golden amber
+            Color(0xFFD48216), // Warm golden base
+          ],
+          stops: const [0.25, 0.70, 1.0],
+        ).createShader(Rect.fromCircle(center: coreCenter, radius: coreRadius)),
+    );
 
-      final pApex = cam.project(Vector3(basePos.x, yTop, basePos.z)).screenOffset;
-      final pLeft = cam
-          .project(Vector3(basePos.x - radius, yBottom, basePos.z - radius * 0.3))
-          .screenOffset;
-      final pFront = cam
-          .project(Vector3(basePos.x, yBottom, basePos.z - radius))
-          .screenOffset;
-      final pRight = cam
-          .project(Vector3(basePos.x + radius, yBottom, basePos.z - radius * 0.3))
-          .screenOffset;
+    // 4. Four soft, rounded plush wheat lobes on top (fluffy cushion silhouette!)
+    final Paint lobePaint = Paint()..color = const Color(0xFFFFD54F);
+    final Paint lobeHighlight = Paint()..color = const Color(0xFFFFF3B0);
 
-      // Left sunlit facet
-      final Path leftFacet = Path()
-        ..moveTo(pApex.dx, pApex.dy)
-        ..lineTo(pLeft.dx, pLeft.dy)
-        ..lineTo(pFront.dx, pFront.dy)
-        ..close();
-      canvas.drawPath(leftFacet, Paint()..color = sunlitLeaf);
+    const int lobeCount = 4;
+    for (int i = 0; i < lobeCount; i++) {
+      final double angle = (i * 2.0 * math.pi / lobeCount) - (math.pi * 0.25);
+      final double lobeRadius = coreRadius * 0.52;
+      final Offset lobePos = Offset(
+        coreCenter.dx + math.cos(angle) * (coreRadius * 0.65),
+        coreCenter.dy + math.sin(angle) * (coreRadius * 0.45) - (coreRadius * 0.25),
+      );
+      canvas.drawCircle(lobePos, lobeRadius, lobePaint);
+      canvas.drawCircle(lobePos, lobeRadius * 0.55, lobeHighlight);
+    }
 
-      // Right shaded facet
-      final Path rightFacet = Path()
-        ..moveTo(pApex.dx, pApex.dy)
-        ..lineTo(pFront.dx, pFront.dy)
-        ..lineTo(pRight.dx, pRight.dy)
-        ..close();
-      canvas.drawPath(rightFacet, Paint()..color = shadedLeaf);
+    // Top crowning golden ear crest
+    canvas.drawCircle(
+      Offset(coreCenter.dx, coreCenter.dy - coreRadius * 0.42),
+      coreRadius * 0.42,
+      lobeHighlight,
+    );
+  }
 
-      // Subtle facet highlight ridge
-      canvas.drawLine(
-        pApex,
-        pFront,
-        Paint()
-          ..color = midLeaf.withValues(alpha: 0.7)
-          ..strokeWidth = 1.2,
+  /// Draws continuous, calm 3D environmental props matching the reference image:
+  /// - Round Spherical Lollipop Trees with circular planter wells (spaced generously)
+  /// - Periodic Red Barn & Grain Silo diorama landmarks (placed well clear of play area)
+  /// - Dotted White Daisy Flower Clusters
+  /// - Clean, subtle rustic border markers
+  void _drawEnvironmentProps3D(Canvas canvas, Camera3DProjector cam) {
+    // 1. Subtle, low rustic boundary posts along the field verge (spaced calmly every 4.8m)
+    const double postStep = 4.8;
+    final double postOffset = worldScrollZ % postStep;
+
+    for (final double vergeX in [-2.85, 2.85]) {
+      for (int slot = 0; slot < 8; slot++) {
+        final double zPost = 26.0 - (slot * postStep + postOffset);
+        // Low rustic post (height only 0.28)
+        _drawExtruded3DBox(
+          canvas,
+          cam,
+          minCorner: Vector3(vergeX - 0.05, 0.0, zPost - 0.05),
+          maxCorner: Vector3(vergeX + 0.05, 0.28, zPost + 0.05),
+          baseColor: const Color(0xFF8B6B4A),
+          topHighlightColor: const Color(0xFFB58E68),
+        );
+      }
+    }
+
+    // 2. Periodic Roadside Red Barn & Grain Silo (set back to X = ±6.0 so it never crowds the screen!)
+    const double barnPeriod = 48.0;
+    final double barnOffset = worldScrollZ % barnPeriod;
+
+    // Left Red Barn & Silo
+    final double leftBarnZ = 24.0 - barnOffset;
+    if (leftBarnZ > -10.0 && leftBarnZ < 26.0) {
+      _drawRoadsideBarnAndSilo3D(
+        canvas,
+        cam,
+        basePos: Vector3(-6.0, 0.0, leftBarnZ),
+        isLeft: true,
       );
     }
+
+    // Right Red Barn & Silo (offset by half cycle)
+    final double rightBarnOffset = (worldScrollZ + 24.0) % barnPeriod;
+    final double rightBarnZ = 24.0 - rightBarnOffset;
+    if (rightBarnZ > -10.0 && rightBarnZ < 26.0) {
+      _drawRoadsideBarnAndSilo3D(
+        canvas,
+        cam,
+        basePos: Vector3(6.0, 0.0, rightBarnZ),
+        isLeft: false,
+      );
+    }
+
+    // 3. Round Spherical Lollipop Trees on Left (-4.05) and Right (+4.05)
+    // Spaced out generously (treeStep = 6.4) so they never clutter or crowd!
+    const double treeStep = 6.4;
+    final double treeOffset = worldScrollZ % treeStep;
+    final int baseTreeIdx = (worldScrollZ / treeStep).floor();
+
+    for (int slot = 0; slot < 7; slot++) {
+      final double z = 26.0 - (slot * treeStep + treeOffset);
+      final int worldTreeIdx = (baseTreeIdx - slot).abs();
+
+      // Left Lollipop Tree
+      _drawLollipopTree3D(
+        canvas,
+        cam,
+        basePos: Vector3(-4.05, 0.0, z),
+        scale: 1.0 + (worldTreeIdx % 2) * 0.08,
+      );
+
+      // Right Lollipop Tree
+      _drawLollipopTree3D(
+        canvas,
+        cam,
+        basePos: Vector3(4.05, 0.0, z),
+        scale: 1.0 + ((worldTreeIdx + 1) % 2) * 0.08,
+      );
+
+      // White Daisy Flower Clusters gently scattered near tree bases
+      _drawFlowerCluster3D(
+        canvas,
+        cam,
+        pos: Vector3(-3.55, 0.01, z - 0.8),
+        scale: 0.9,
+      );
+      _drawFlowerCluster3D(
+        canvas,
+        cam,
+        pos: Vector3(3.55, 0.01, z - 0.8),
+        scale: 0.9,
+      );
+    }
+  }
+
+  /// Renders a cute, rounded 3D Lollipop Tree with spherical foliage,
+  /// directional specular shine, and a circular recessed planter well matching the reference image.
+  void _drawLollipopTree3D(
+    Canvas canvas,
+    Camera3DProjector cam, {
+    required Vector3 basePos,
+    double scale = 1.0,
+  }) {
+    // 1. Recessed Circular Planter Well in the grass (Iconic Diorama Feature!)
+    final projWell = cam.project(Vector3(basePos.x, 0.005, basePos.z));
+    final double wellRadiusW = 18.0 * scale * projWell.scale;
+    final double wellRadiusH = 10.0 * scale * projWell.scale;
+    // Outer darker green depression rim
+    canvas.drawOval(
+      Rect.fromCenter(center: projWell.screenOffset, width: wellRadiusW, height: wellRadiusH),
+      Paint()..color = const Color(0xFF488419),
+    );
+    // Inner rich soil bottom
+    canvas.drawOval(
+      Rect.fromCenter(center: projWell.screenOffset, width: wellRadiusW * 0.75, height: wellRadiusH * 0.75),
+      Paint()..color = const Color(0xFF386812),
+    );
+
+    // 2. Soft ground shadow of the spherical crown
+    _drawSoftGroundShadow(
+      canvas,
+      cam,
+      worldCenter: Vector3(basePos.x + 0.15, 0.9 * scale, basePos.z - 0.15),
+      radiusX: 0.75 * scale,
+      radiusZ: 0.65 * scale,
+      receiverY: 0.01,
+    );
+
+    // 3. Solid cocoa wood trunk firmly reaching into the crown sphere (fully joined!)
+    const double trunkHalfW = 0.09;
+    final double trunkTopY = 1.10 * scale;
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(basePos.x - trunkHalfW * scale, 0.0, basePos.z - trunkHalfW * scale),
+      maxCorner: Vector3(basePos.x + trunkHalfW * scale, trunkTopY, basePos.z + trunkHalfW * scale),
+      baseColor: const Color(0xFF5E361A),
+      topHighlightColor: const Color(0xFF7A4522),
+    );
+
+    // 4. Smooth Spherical Lollipop Crown (firmly overlapping & unified with the trunk!)
+    final Vector3 crownCenter = Vector3(basePos.x, 1.05 * scale, basePos.z);
+    final projCrown = cam.project(crownCenter);
+    final double crownRadius = 30.0 * scale * projCrown.scale;
+    final Offset crownOffset = projCrown.screenOffset;
+
+    // Darker underside leaf collar connecting trunk into foliage
+    final Offset junctionOffset = Offset(crownOffset.dx, crownOffset.dy + crownRadius * 0.40);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: junctionOffset,
+        width: 16.0 * scale * projCrown.scale,
+        height: 7.0 * scale * projCrown.scale,
+      ),
+      Paint()..color = const Color(0xFF24540A),
+    );
+
+    final Rect crownRect = Rect.fromCircle(center: crownOffset, radius: crownRadius);
+    // Spherical 3D shading: light source from top-left
+    final Paint spherePaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.35, -0.40),
+        radius: 0.95,
+        colors: const [
+          Color(0xFFAEF46B), // Sunlit lime highlight
+          Color(0xFF6DCB32), // Vibrant juicy green
+          Color(0xFF4A9C1D), // Mid green
+          Color(0xFF2E6B0E), // Shadow underside
+        ],
+        stops: const [0.0, 0.45, 0.75, 1.0],
+      ).createShader(crownRect);
+
+    canvas.drawCircle(crownOffset, crownRadius, spherePaint);
+
+    // Cute specular highlight gloss spot (top-left reflection)
+    final Offset glossOffset = Offset(
+      crownOffset.dx - crownRadius * 0.32,
+      crownOffset.dy - crownRadius * 0.36,
+    );
+    canvas.drawCircle(
+      glossOffset,
+      crownRadius * 0.22,
+      Paint()..color = Colors.white.withValues(alpha: 0.40),
+    );
+  }
+
+  /// Draws a charming Red Barn & Grain Silo diorama feature matching the reference image.
+  void _drawRoadsideBarnAndSilo3D(
+    Canvas canvas,
+    Camera3DProjector cam, {
+    required Vector3 basePos,
+    bool isLeft = true,
+  }) {
+    final double bx = basePos.x;
+    final double bz = basePos.z;
+
+    // 1. White foundation slab
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(bx - 0.95, 0.0, bz - 0.95),
+      maxCorner: Vector3(bx + 0.95, 0.10, bz + 0.95),
+      baseColor: const Color(0xFFE9ECEF),
+      topHighlightColor: Colors.white,
+    );
+
+    // 2. Red Barn Main Body
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(bx - 0.90, 0.10, bz - 0.90),
+      maxCorner: Vector3(bx + 0.90, 1.45, bz + 0.90),
+      baseColor: const Color(0xFFD62828),
+      topHighlightColor: const Color(0xFFE63946),
+    );
+
+    // 3. Pitched Gable Roof (Terracotta / Cocoa Brown)
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(bx - 1.02, 1.45, bz - 1.02),
+      maxCorner: Vector3(bx + 1.02, 2.05, bz + 1.02),
+      baseColor: const Color(0xFF824538),
+      topHighlightColor: const Color(0xFF9E5647),
+    );
+
+    // Red chimney on the roof
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(bx + 0.35, 1.95, bz + 0.15),
+      maxCorner: Vector3(bx + 0.55, 2.30, bz + 0.35),
+      baseColor: const Color(0xFFBA181B),
+      topHighlightColor: const Color(0xFFE63946),
+    );
+
+    // 4. White Door Frames with Iconic "X" Cross-Braces!
+    final double doorFrontZ = bz - 0.91;
+    // Dark open doorway in center
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(bx - 0.38, 0.10, doorFrontZ - 0.02),
+      maxCorner: Vector3(bx + 0.38, 0.95, doorFrontZ + 0.01),
+      baseColor: const Color(0xFF1B1D22),
+    );
+
+    // Left and Right Barn Doors with White X
+    for (final double doorX in [bx - 0.65, bx + 0.65]) {
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: Vector3(doorX - 0.22, 0.10, doorFrontZ - 0.03),
+        maxCorner: Vector3(doorX + 0.22, 0.90, doorFrontZ),
+        baseColor: const Color(0xFFBA181B),
+      );
+
+      final pTL = cam.project(Vector3(doorX - 0.22, 0.90, doorFrontZ - 0.035)).screenOffset;
+      final pTR = cam.project(Vector3(doorX + 0.22, 0.90, doorFrontZ - 0.035)).screenOffset;
+      final pBR = cam.project(Vector3(doorX + 0.22, 0.10, doorFrontZ - 0.035)).screenOffset;
+      final pBL = cam.project(Vector3(doorX - 0.22, 0.10, doorFrontZ - 0.035)).screenOffset;
+
+      final Paint whiteFramePaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = 2.2
+        ..style = PaintingStyle.stroke;
+
+      final Path framePath = Path()
+        ..moveTo(pTL.dx, pTL.dy)
+        ..lineTo(pTR.dx, pTR.dy)
+        ..lineTo(pBR.dx, pBR.dy)
+        ..lineTo(pBL.dx, pBL.dy)
+        ..close();
+      canvas.drawPath(framePath, whiteFramePaint);
+
+      // White "X" cross-brace lines
+      canvas.drawLine(pTL, pBR, whiteFramePaint);
+      canvas.drawLine(pTR, pBL, whiteFramePaint);
+    }
+
+    // Small square loft window with white trim on gable
+    final pWinTL = cam.project(Vector3(bx - 0.18, 1.40, doorFrontZ - 0.03)).screenOffset;
+    final pWinBR = cam.project(Vector3(bx + 0.18, 1.15, doorFrontZ - 0.03)).screenOffset;
+    canvas.drawRect(Rect.fromPoints(pWinTL, pWinBR), Paint()..color = const Color(0xFF2B3A4A));
+    canvas.drawRect(
+      Rect.fromPoints(pWinTL, pWinBR),
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0,
+    );
+
+    // 5. Tall Grain Silo right next to the barn!
+    final double siloX = isLeft ? bx - 1.55 : bx + 1.55;
+    final double siloZ = bz + 0.25;
+
+    // Silo ground shadow
+    _drawSoftGroundShadow(
+      canvas,
+      cam,
+      worldCenter: Vector3(siloX, 1.5, siloZ),
+      radiusX: 0.70,
+      radiusZ: 0.70,
+      receiverY: 0.01,
+    );
+
+    // Silo cylindrical body (soft warm birch/wheat beige)
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(siloX - 0.42, 0.0, siloZ - 0.42),
+      maxCorner: Vector3(siloX + 0.42, 2.40, siloZ + 0.42),
+      baseColor: const Color(0xFFDFCAAC),
+      topHighlightColor: const Color(0xFFEBD8BD),
+    );
+
+    // Metal reinforcement hoops / rings around the silo body
+    final Paint hoopPaint = Paint()
+      ..color = const Color(0xFF6C7A89)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    for (final double ringY in [0.8, 1.6, 2.35]) {
+      final p1 = cam.project(Vector3(siloX - 0.43, ringY, siloZ - 0.43)).screenOffset;
+      final p2 = cam.project(Vector3(siloX + 0.43, ringY, siloZ - 0.43)).screenOffset;
+      canvas.drawLine(p1, p2, hoopPaint);
+    }
+
+    // Silo domed silver cap / roof with finial peak
+    final Vector3 domeCenter = Vector3(siloX, 2.45, siloZ);
+    final projDome = cam.project(domeCenter);
+    final double domeRadius = 17.0 * projDome.scale;
+    canvas.drawCircle(
+      projDome.screenOffset,
+      domeRadius,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.35, -0.40),
+          colors: const [
+            Color(0xFFAAB8C6),
+            Color(0xFF7D8B99),
+            Color(0xFF4A5562),
+          ],
+        ).createShader(Rect.fromCircle(center: projDome.screenOffset, radius: domeRadius)),
+    );
+
+    // Finial ball on top of silo
+    final projFinial = cam.project(Vector3(siloX, 2.75, siloZ));
+    canvas.drawCircle(projFinial.screenOffset, 3.5 * projFinial.scale, Paint()..color = const Color(0xFF333D48));
+  }
+
+  /// Draws a cute little white flower blossom cluster with yellow center on the grass.
+  void _drawFlowerCluster3D(
+    Canvas canvas,
+    Camera3DProjector cam, {
+    required Vector3 pos,
+    double scale = 1.0,
+  }) {
+    final proj = cam.project(pos);
+    final Offset center = proj.screenOffset;
+    final double r = 3.8 * scale * proj.scale;
+
+    final Paint petalPaint = Paint()..color = Colors.white;
+    for (int p = 0; p < 5; p++) {
+      final double angle = p * 2.0 * math.pi / 5.0;
+      final Offset petalOffset = Offset(
+        center.dx + math.cos(angle) * (r * 0.8),
+        center.dy + math.sin(angle) * (r * 0.8),
+      );
+      canvas.drawCircle(petalOffset, r * 0.55, petalPaint);
+    }
+    // Sunny yellow center
+    canvas.drawCircle(center, r * 0.42, Paint()..color = const Color(0xFFFFD13B));
   }
 
   /// Draws the 3D tow bars connecting Tractor -> Baler -> Wooden Wagon.
@@ -509,7 +821,9 @@ class FarmScene3DPainter extends CustomPainter {
   /// Draws the 3D Red Farm Tractor at Z = 6.2 with 3D wheels, engine hood, cabin, and exhaust.
   void _drawTractor3D(Canvas canvas, Camera3DProjector cam) {
     const double tz = 6.2;
-    final double engineBob = math.sin(animTime * 14.0) * 0.03;
+    // Field terrain suspension dynamics: tractor gently rolls and heaves as it moves through the unharvested field!
+    final double fieldPitch = math.sin(worldScrollZ * 2.4) * 0.024;
+    final double engineBob = math.sin(animTime * 14.0) * 0.025 + fieldPitch;
 
     // 1. Soft directional shadow under tractor
     _drawSoftGroundShadow(
@@ -521,13 +835,14 @@ class FarmScene3DPainter extends CustomPainter {
       receiverY: 0.0,
     );
 
-    // 2. Front & Rear Left Wheels (X < 0)
+    // 2. Front & Rear Left Wheels (X < 0) with rotating cleats and yellow rims
     _drawWheel3D(
       canvas,
       cam,
       center: Vector3(-0.88, 0.38, tz + 0.75),
       radius: 0.38,
       width: 0.24,
+      isTractorTire: true,
     );
     _drawWheel3D(
       canvas,
@@ -535,15 +850,17 @@ class FarmScene3DPainter extends CustomPainter {
       center: Vector3(-0.95, 0.62, tz - 0.35),
       radius: 0.62,
       width: 0.34,
+      isTractorTire: true,
     );
 
-    // 3. Front & Rear Right Wheels (X > 0)
+    // 3. Front & Rear Right Wheels (X > 0) with rotating cleats and yellow rims
     _drawWheel3D(
       canvas,
       cam,
       center: Vector3(0.88, 0.38, tz + 0.75),
       radius: 0.38,
       width: 0.24,
+      isTractorTire: true,
     );
     _drawWheel3D(
       canvas,
@@ -551,6 +868,7 @@ class FarmScene3DPainter extends CustomPainter {
       center: Vector3(0.95, 0.62, tz - 0.35),
       radius: 0.62,
       width: 0.34,
+      isTractorTire: true,
     );
 
     // 4. 3D Red Engine Hood & Chassis (Z: tz to tz + 1.15)
@@ -562,6 +880,31 @@ class FarmScene3DPainter extends CustomPainter {
       baseColor: FarmTheme.tractorRed,
       topHighlightColor: const Color(0xFFFF5C67),
     );
+
+    // Front Radiator Grille (Z = tz + 1.15, Y = 0.52..1.18)
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(-0.45, 0.52 + engineBob, tz + 1.15),
+      maxCorner: Vector3(0.45, 1.18 + engineBob, tz + 1.18),
+      baseColor: const Color(0xFF1E2024),
+      topHighlightColor: const Color(0xFF32363E),
+    );
+
+    // Twin Glowing Headlights (Amber/Warm Yellow) shining forward into the unharvested field
+    for (final double lx in [-0.42, 0.42]) {
+      final projLight = cam.project(Vector3(lx, 0.88 + engineBob, tz + 1.19));
+      canvas.drawCircle(
+        projLight.screenOffset,
+        6.5 * projLight.scale,
+        Paint()..color = const Color(0xFFFFD166),
+      );
+      canvas.drawCircle(
+        projLight.screenOffset,
+        3.5 * projLight.scale,
+        Paint()..color = Colors.white,
+      );
+    }
 
     // 5. Rear Fenders over big tires
     _drawExtruded3DBox(
@@ -708,6 +1051,82 @@ class FarmScene3DPainter extends CustomPainter {
       ..lineTo(pMouthBL.dx, pMouthBL.dy)
       ..close();
     canvas.drawPath(mouthPath, Paint()..color = const Color(0xFF1B262C));
+
+    // 5. 3D Front Pickup Reel / Header (Toplayıcı Tabla) gathering unharvested wheat into the baler
+    _drawBalerPickupHeader(canvas, cam, bz: bz, vib: vib);
+  }
+
+  /// Draws the rotating 3D pickup drum & gathering tines at the front of the baler (Z ≈ 4.35).
+  void _drawBalerPickupHeader(
+    Canvas canvas,
+    Camera3DProjector cam, {
+    required double bz,
+    required double vib,
+  }) {
+    const double pz = 4.35; // Front pickup location
+
+    // Ground shadow under pickup header
+    _drawSoftGroundShadow(
+      canvas,
+      cam,
+      worldCenter: Vector3(0.0, 0.3, pz),
+      radiusX: 0.85,
+      radiusZ: 0.45,
+      receiverY: 0.0,
+    );
+
+    // Main steel pickup drum cylinder across the front
+    _drawExtruded3DBox(
+      canvas,
+      cam,
+      minCorner: Vector3(-0.68, 0.08 + vib, pz - 0.20),
+      maxCorner: Vector3(0.68, 0.38 + vib, pz + 0.20),
+      baseColor: const Color(0xFF1B4D3E),
+      topHighlightColor: const Color(0xFF388E6D),
+    );
+
+    // Left and Right Skid Plates / Crop Dividers (Yan Kızaklar)
+    for (final double skidX in [-0.72, 0.72]) {
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: Vector3(skidX - 0.04, 0.02 + vib, pz - 0.28),
+        maxCorner: Vector3(skidX + 0.04, 0.42 + vib, pz + 0.28),
+        baseColor: const Color(0xFF2C3038),
+        topHighlightColor: const Color(0xFF4A4E5A),
+      );
+    }
+
+    // Rotating Spring-Steel Pickup Tines (Yaylı Toplayıcı Tırmıklar)
+    final double tineRot = (worldScrollZ * 6.5) % (2 * math.pi);
+    final Paint tinePaint = Paint()
+      ..color = const Color(0xFFFFD166)
+      ..strokeWidth = 2.0;
+
+    const int tineSteps = 5;
+    for (int t = 0; t < tineSteps; t++) {
+      final double tx = -0.55 + t * 0.275;
+      for (int a = 0; a < 4; a++) {
+        final double angle = tineRot + (a * math.pi * 0.5);
+        final double dy = math.sin(angle) * 0.16;
+        final double dz = math.cos(angle) * 0.16;
+
+        final pBase = cam.project(Vector3(tx, 0.23 + vib, pz)).screenOffset;
+        final pTip = cam.project(Vector3(tx, 0.23 + vib + dy, pz + dz)).screenOffset;
+        canvas.drawLine(pBase, pTip, tinePaint);
+      }
+    }
+
+    // Swirling straw dust particles entering the baler intake
+    final Paint dustPaint = Paint()..color = const Color(0xFFFFE6A7).withValues(alpha: 0.65);
+    for (int p = 0; p < 3; p++) {
+      final double puffPhase = ((animTime * 3.0 + p * 0.33) % 1.0);
+      final double px = -0.3 + p * 0.3;
+      final double py = 0.20 + puffPhase * 0.35;
+      final double pzIn = pz + 0.1 - puffPhase * 0.45;
+      final proj = cam.project(Vector3(px, py + vib, pzIn));
+      canvas.drawCircle(proj.screenOffset, 2.5 * proj.scale, dustPaint);
+    }
   }
 
   /// Draws the 3D Wooden Wagon with visible 3D side walls, interior planks,
@@ -960,6 +1379,7 @@ class FarmScene3DPainter extends CustomPainter {
         center: tiltPoint(bx, by + 0.17, bz),
         size: Vector3(0.66, 0.33, 0.44),
         hueVariation: isSelectedTopBale ? 0.12 : stacked.colorHueVariation,
+        isGolden: stacked.isGolden,
       );
     }
 
@@ -1370,28 +1790,54 @@ class FarmScene3DPainter extends CustomPainter {
     required Vector3 size,
     double hueVariation = 0.0,
     double rotationZ = 0.0,
+    ThrownObjectType objectType = ThrownObjectType.bale,
+    bool isGolden = false,
   }) {
     final double hx = size.x * 0.5;
     final double hy = size.y * 0.5;
     final double hz = size.z * 0.5;
 
-    final hsl = HSLColor.fromColor(FarmTheme.goldenStraw);
-    final Color variedStraw = hsl
-        .withHue((hsl.hue + hueVariation * 35.0) % 360.0)
-        .toColor();
+    final Color baseStraw;
+    final Color topHighlight;
+
+    if (objectType == ThrownObjectType.burningBale) {
+      baseStraw = const Color(0xFF262626);
+      topHighlight = const Color(0xFFFF5722);
+    } else if (isGolden || objectType == ThrownObjectType.goldenBale) {
+      baseStraw = const Color(0xFFFFB300);
+      topHighlight = const Color(0xFFFFF176);
+    } else if (objectType == ThrownObjectType.magnetPowerUp) {
+      baseStraw = const Color(0xFF0288D1);
+      topHighlight = const Color(0xFF4FC3F7);
+    } else if (objectType == ThrownObjectType.slowMoPowerUp) {
+      baseStraw = const Color(0xFF0097A7);
+      topHighlight = const Color(0xFF80DEEA);
+    } else {
+      final hsl = HSLColor.fromColor(FarmTheme.goldenStraw);
+      baseStraw = hsl
+          .withHue((hsl.hue + hueVariation * 35.0) % 360.0)
+          .toColor();
+      topHighlight = FarmTheme.sunWarmYellow;
+    }
 
     _drawExtruded3DBox(
       canvas,
       cam,
       minCorner: Vector3(center.x - hx, center.y - hy, center.z - hz),
       maxCorner: Vector3(center.x + hx, center.y + hy, center.z + hz),
-      baseColor: variedStraw,
-      topHighlightColor: FarmTheme.sunWarmYellow,
+      baseColor: baseStraw,
+      topHighlightColor: topHighlight,
     );
 
     // Draw 3D Twine Ties wrapping the top and front faces of the bale
+    final Color twineColor = objectType == ThrownObjectType.burningBale
+        ? const Color(0xFFFF3D00)
+        : ((isGolden || objectType == ThrownObjectType.goldenBale)
+            ? const Color(0xFFFFE082)
+            : const Color(0xFF6B4226));
+
     final Paint twinePaint = Paint()
-      ..color = const Color(0xFF6B4226)
+      ..color = twineColor
       ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
@@ -1405,6 +1851,18 @@ class FarmScene3DPainter extends CustomPainter {
         ..lineTo(pTopFront.dx, pTopFront.dy)
         ..lineTo(pBotFront.dx, pBotFront.dy);
       canvas.drawPath(twinePath, twinePaint);
+    }
+
+    // Flame effects for Burning Bale
+    if (objectType == ThrownObjectType.burningBale) {
+      final projCenter = cam.project(Vector3(center.x, center.y + hy + 0.18, center.z));
+      final Paint flamePaint = Paint()..style = PaintingStyle.fill;
+      for (int i = 0; i < 3; i++) {
+        final double flameX = projCenter.screenOffset.dx + (i - 1) * 8.0 * projCenter.scale;
+        final double flameY = projCenter.screenOffset.dy - (6.0 + (i % 2) * 6.0) * projCenter.scale;
+        flamePaint.color = i == 1 ? Colors.yellowAccent : const Color(0xFFFF5722);
+        canvas.drawCircle(Offset(flameX, flameY), 4.5 * projCenter.scale, flamePaint);
+      }
     }
   }
 
@@ -1426,6 +1884,22 @@ class FarmScene3DPainter extends CustomPainter {
       radiusZ: 0.34,
       receiverY: basePos.y,
     );
+
+    // 1b. Magnet Power-Up Aura Ring under player
+    if (game.isMagnetActive) {
+      final projAura = cam.project(Vector3(basePos.x, basePos.y + 0.02, basePos.z));
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: projAura.screenOffset,
+          width: 60.0 * projAura.scale,
+          height: 34.0 * projAura.scale,
+        ),
+        Paint()
+          ..color = const Color(0xFF00E5FF).withValues(alpha: 0.45)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4,
+      );
+    }
 
     final double stunLeanX = isStunned ? -0.25 : 0.0;
     final double stunDropY = isStunned ? -0.22 : 0.0;
@@ -1627,15 +2101,21 @@ class FarmScene3DPainter extends CustomPainter {
           size: Vector3(0.70 * scaleFade, 0.38 * scaleFade, 0.46 * scaleFade),
           hueVariation: bale.colorHueVariation,
           rotationZ: bale.currentRotation.z,
+          objectType: bale.objectType,
+          isGolden: bale.objectType == ThrownObjectType.goldenBale,
         );
       }
 
       // 3. Draw Catch Timing Halo when bale/animal is within the 3D catch window
       if (bale.isInCatchWindow) {
         final projBale = cam.project(bale.currentPos);
-        final Color ringColor = bale.objectType.isAnimal
-            ? FarmTheme.comboOrange
-            : FarmTheme.sunWarmYellow;
+        final Color ringColor = bale.objectType == ThrownObjectType.burningBale
+            ? const Color(0xFFFF3D00)
+            : (bale.objectType == ThrownObjectType.goldenBale
+                ? const Color(0xFFFFD700)
+                : (bale.objectType.isAnimal
+                    ? FarmTheme.comboOrange
+                    : FarmTheme.sunWarmYellow));
         canvas.drawCircle(
           projBale.screenOffset,
           28.0 * projBale.scale,
@@ -1643,6 +2123,27 @@ class FarmScene3DPainter extends CustomPainter {
             ..color = ringColor.withValues(alpha: 0.88)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2.8,
+        );
+      }
+
+      // 3b. If cell was scorched by burning bale, draw black charred mark + smoke puff
+      if (bale.state == BaleState.burnedCell) {
+        final double fade = bale.fadeOpacity.clamp(0.0, 1.0);
+        final projScorched = cam.project(
+          Vector3(bale.currentPos.x, receiverY + 0.02, bale.currentPos.z),
+        );
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: projScorched.screenOffset,
+            width: 52.0 * projScorched.scale,
+            height: 30.0 * projScorched.scale,
+          ),
+          Paint()..color = Colors.black.withValues(alpha: 0.75 * fade),
+        );
+        canvas.drawCircle(
+          Offset(projScorched.screenOffset.dx, projScorched.screenOffset.dy - 12.0 * projScorched.scale),
+          14.0 * projScorched.scale,
+          Paint()..color = const Color(0xFF424242).withValues(alpha: 0.55 * fade),
         );
       }
 
@@ -2044,7 +2545,6 @@ class FarmScene3DPainter extends CustomPainter {
         break;
 
       case ThrownObjectType.bird:
-      case ThrownObjectType.bale:
         // Sky-blue bird with wide flapping wings
         _drawExtruded3DBox(
           canvas,
@@ -2070,6 +2570,9 @@ class FarmScene3DPainter extends CustomPainter {
           maxCorner: Vector3(pos.x + 0.06 * s, pos.y + 0.20 * s, pos.z - 0.20 * s),
           baseColor: const Color(0xFFFFB703),
         );
+        break;
+
+      default:
         break;
     }
 
@@ -2160,13 +2663,14 @@ class FarmScene3DPainter extends CustomPainter {
     );
   }
 
-  /// Renders a 3D Cylindrical Wheel with dark rubber tire and silver hubcap.
+  /// Renders a 3D Cylindrical Wheel with dark rubber tire, rotating spokes, and optional tractor cleats/yellow rims.
   void _drawWheel3D(
     Canvas canvas,
     Camera3DProjector cam, {
     required Vector3 center,
     required double radius,
     required double width,
+    bool isTractorTire = false,
   }) {
     final double hw = width * 0.5;
     _drawExtruded3DBox(
@@ -2174,21 +2678,87 @@ class FarmScene3DPainter extends CustomPainter {
       cam,
       minCorner: Vector3(center.x - hw, center.y - radius, center.z - radius),
       maxCorner: Vector3(center.x + hw, center.y + radius, center.z + radius),
-      baseColor: const Color(0xFF252830),
-      topHighlightColor: const Color(0xFF3E424E),
+      baseColor: const Color(0xFF22242B),
+      topHighlightColor: const Color(0xFF383C48),
     );
 
-    // Wheel rim highlight on outer side
-    final double rimX = center.x < 0 ? center.x - hw - 0.01 : center.x + hw + 0.01;
+    // Wheel rim on outer side
+    final double rimX = center.x < 0 ? center.x - hw - 0.015 : center.x + hw + 0.015;
     final projRim = cam.project(Vector3(rimX, center.y, center.z));
+    final double rimRadiusW = radius * 16.0 * projRim.scale;
+    final double rimRadiusH = radius * 28.0 * projRim.scale;
+
+    final rimRect = Rect.fromCenter(
+      center: projRim.screenOffset,
+      width: rimRadiusW,
+      height: rimRadiusH,
+    );
+
+    // Classic Farm Yellow Tractor Rims or Industrial Gray Wagon/Baler Rims
+    final Color rimBaseColor = isTractorTire ? const Color(0xFFF5B700) : const Color(0xFFADB5BD);
+    final Color rimCenterColor = isTractorTire ? const Color(0xFFD69A00) : const Color(0xFF6C757D);
+
+    canvas.drawOval(rimRect, Paint()..color = rimBaseColor);
+
+    // Inner rim recess
     canvas.drawOval(
       Rect.fromCenter(
         center: projRim.screenOffset,
-        width: radius * 16.0 * projRim.scale,
-        height: radius * 28.0 * projRim.scale,
+        width: rimRadiusW * 0.62,
+        height: rimRadiusH * 0.62,
       ),
-      Paint()..color = const Color(0xFFADB5BD),
+      Paint()..color = rimCenterColor,
     );
+
+    // Rotating Lug Nuts & Spokes (synchronous with worldScrollZ / radius)
+    final double rotationAngle = -(worldScrollZ / radius);
+    final int spokeCount = isTractorTire ? 6 : 4;
+    final Paint spokePaint = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = isTractorTire ? 2.5 * projRim.scale : 1.8 * projRim.scale;
+
+    for (int i = 0; i < spokeCount; i++) {
+      final double angle = rotationAngle + (i * 2.0 * math.pi / spokeCount);
+      final double cosA = math.cos(angle);
+      final double sinA = math.sin(angle);
+      final Offset lugOffset = Offset(
+        projRim.screenOffset.dx + cosA * (rimRadiusW * 0.28),
+        projRim.screenOffset.dy + sinA * (rimRadiusH * 0.28),
+      );
+      canvas.drawCircle(lugOffset, 2.2 * projRim.scale, spokePaint);
+    }
+
+    // Central axle hub nut
+    canvas.drawCircle(
+      projRim.screenOffset,
+      3.2 * projRim.scale,
+      Paint()..color = const Color(0xFF2B2D42),
+    );
+
+    // Rotating Chevron / Herringbone Agricultural Tire Treads (Tarla Lastiği Dişleri)
+    if (isTractorTire) {
+      final Paint cleatPaint = Paint()
+        ..color = const Color(0xFF454955)
+        ..strokeWidth = 2.4 * projRim.scale
+        ..strokeCap = StrokeCap.round;
+
+      const int cleatCount = 8;
+      for (int c = 0; c < cleatCount; c++) {
+        final double cleatAngle = rotationAngle + (c * 2.0 * math.pi / cleatCount);
+        final double cosC = math.cos(cleatAngle);
+        final double sinC = math.sin(cleatAngle);
+
+        final Offset cleatInner = Offset(
+          projRim.screenOffset.dx + cosC * (rimRadiusW * 0.48),
+          projRim.screenOffset.dy + sinC * (rimRadiusH * 0.48),
+        );
+        final Offset cleatOuter = Offset(
+          projRim.screenOffset.dx + cosC * (rimRadiusW * 0.64),
+          projRim.screenOffset.dy + sinC * (rimRadiusH * 0.64),
+        );
+        canvas.drawLine(cleatInner, cleatOuter, cleatPaint);
+      }
+    }
   }
 
   /// Renders a true 3D axis-aligned box in perspective with directional Key Light shading
@@ -2289,28 +2859,86 @@ class FarmScene3DPainter extends CustomPainter {
     canvas.drawPath(topFace, Paint()..color = topColor);
   }
 
-  /// Adds a warm, cozy golden-hour directional sunlight glow from top-left.
+  /// Adds atmospheric lighting for Day, Sunset, Night, and Frenzy modes.
   void _drawSunlightAtmosphere(Canvas canvas, Size size) {
     final Rect rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final Paint sunGlowPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.85, -0.90),
-        radius: 1.35,
-        colors: [
-          const Color(0xFFFFE082).withValues(alpha: 0.22),
-          const Color(0xFFFFD166).withValues(alpha: 0.06),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.45, 1.0],
-      ).createShader(rect);
-    canvas.drawRect(rect, sunGlowPaint);
+
+    if (game.timeOfDay == AtmosphereTimeOfDay.sunset) {
+      // Warm amber/crimson sunset gradient
+      final Paint sunsetPaint = Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.70, -0.80),
+          radius: 1.45,
+          colors: [
+            const Color(0xFFFF7043).withValues(alpha: 0.28),
+            const Color(0xFFFFB300).withValues(alpha: 0.16),
+            const Color(0xFF512DA8).withValues(alpha: 0.12),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.40, 0.75, 1.0],
+        ).createShader(rect);
+      canvas.drawRect(rect, sunsetPaint);
+    } else if (game.timeOfDay == AtmosphereTimeOfDay.night) {
+      // Midnight navy overlay with glowing headlight cone and fireflies!
+      final Paint nightPaint = Paint()
+        ..color = const Color(0xFF0D1B2A).withValues(alpha: 0.44);
+      canvas.drawRect(rect, nightPaint);
+
+      // Tractor headlight beams illuminating the road
+      final Paint headlightPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFFFF9C4).withValues(alpha: 0.26),
+            const Color(0xFFFFEE58).withValues(alpha: 0.08),
+            Colors.transparent,
+          ],
+        ).createShader(rect);
+      canvas.drawRect(rect, headlightPaint);
+
+      // Fireflies floating in the meadow
+      final Paint fireflyPaint = Paint()..style = PaintingStyle.fill;
+      for (int i = 0; i < 8; i++) {
+        final double fx = ((math.sin(animTime * 1.5 + i * 1.8) * 0.4 + 0.5) * size.width);
+        final double fy = ((math.cos(animTime * 1.2 + i * 2.3) * 0.25 + 0.6) * size.height);
+        final double blink = (math.sin(animTime * 3.5 + i) * 0.5 + 0.5);
+        fireflyPaint.color = const Color(0xFFEEFF41).withValues(alpha: blink * 0.75);
+        canvas.drawCircle(Offset(fx, fy), 2.5, fireflyPaint);
+      }
+    } else {
+      // Default warm sunny daytime
+      final Paint sunGlowPaint = Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-0.85, -0.90),
+          radius: 1.35,
+          colors: [
+            const Color(0xFFFFE082).withValues(alpha: 0.22),
+            const Color(0xFFFFD166).withValues(alpha: 0.06),
+            Colors.transparent,
+          ],
+          stops: const [0.0, 0.45, 1.0],
+        ).createShader(rect);
+      canvas.drawRect(rect, sunGlowPaint);
+    }
+
+    // Frenzy wave border glow
+    if (game.isFrenzyActive) {
+      final Paint frenzyGlow = Paint()
+        ..color = FarmTheme.comboOrange.withValues(
+          alpha: 0.22 + math.sin(animTime * 8.0).abs() * 0.16,
+        )
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 14;
+      canvas.drawRect(rect, frenzyGlow);
+    }
   }
 
   /// Draws floating score, combo, and damage notifications projected in 3D space.
   void _drawFloatingNotices3D(Canvas canvas, Camera3DProjector cam) {
     for (final notice in game.notices) {
       final double alpha = notice.lifeTime.clamp(0.0, 1.0);
-      final double worldY = 2.05 + (1.0 - alpha) * 1.45;
+      final double worldY = 2.45 + (1.0 - alpha) * 1.55;
       final proj = cam.project(
         Vector3(notice.x, worldY, BaleSpawner.playerCatchZ),
       );

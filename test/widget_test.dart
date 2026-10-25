@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,10 +8,13 @@ import 'package:farm_bale_game/controllers/game_controller.dart';
 import 'package:farm_bale_game/controllers/rive_game_controller.dart';
 import 'package:farm_bale_game/models/bale.dart';
 import 'package:farm_bale_game/models/game_mode.dart';
+import 'package:farm_bale_game/models/stack_slot.dart';
 import 'package:farm_bale_game/physics/bale_spawner.dart';
 import 'package:farm_bale_game/physics/camera_3d.dart';
 import 'package:farm_bale_game/physics/collision_detector.dart';
 import 'package:farm_bale_game/physics/trailer_physics.dart';
+import 'package:farm_bale_game/views/widgets/farm_canvas_view.dart';
+import 'package:farm_bale_game/views/widgets/top_hud_panel.dart';
 import 'package:farm_bale_game/main.dart';
 
 void main() {
@@ -192,8 +196,10 @@ void main() {
       expect(chicken.objectType.isAnimal, isTrue);
       expect(chicken.objectType.displayNameTr, equals('Tavuk'));
 
-      // Verify all 8 animal types + bale are distinct in ThrownObjectType
-      expect(ThrownObjectType.values.length, equals(9));
+      // Verify all 8 animal types + bale + 4 special power-ups are distinct in ThrownObjectType
+      expect(ThrownObjectType.values.length, equals(13));
+      expect(ThrownObjectType.burningBale.emoji, equals('🔥'));
+      expect(ThrownObjectType.goldenBale.emoji, equals('🌟'));
 
       // Verify escaping physics moves the animal across the wagon floor
       chicken.state = BaleState.escaping;
@@ -260,6 +266,67 @@ void main() {
       }
     });
 
+    test('Arcade excitement features: Burning Bale throw/explosion, Power-Ups, and Day-Night progression', () {
+      SharedPreferences.setMockInitialValues({});
+      final rive = RiveGameController();
+      final game = GameController(riveBridge: rive);
+      game.resetGame();
+
+      // 1. Verify Atmosphere Time of Day progression
+      expect(game.timeOfDay, equals(AtmosphereTimeOfDay.day));
+      expect(game.atmosphereMultiplier, equals(1.0));
+
+      // 2. Verify Harvest Order initialization
+      expect(game.currentHarvestOrder, isNotNull);
+      expect(game.currentHarvestOrder!.isCompleted, isFalse);
+
+      // 3. Test Burning Bale catch -> hot potato holding state -> throw
+      final burningBale = game.spawner.spawnWithType(ThrownObjectType.burningBale);
+      expect(burningBale.objectType, equals(ThrownObjectType.burningBale));
+
+      // Simulate player catching burning bale
+      burningBale.progress = 0.85;
+      game.addActiveBaleForTesting(burningBale);
+      game.setPlayerPositionForTesting(burningBale.targetPos.x, burningBale.targetPos.z);
+      game.update(0.05);
+
+      expect(game.isHoldingBurningBale, isTrue);
+      expect(game.burningBaleTimer, greaterThan(0.0));
+
+      // Tap Throw button before 3s timer expires
+      final initialScore = game.score;
+      game.throwHeldBurningBale();
+      expect(game.isHoldingBurningBale, isFalse);
+      expect(game.score, equals(initialScore + 150));
+
+      // 4. Test Burning Bale landing uncaught on floor burns stacked bales in that cell
+      final normalBale = game.spawner.spawnWithType(ThrownObjectType.bale);
+      normalBale.progress = 0.85;
+      game.addActiveBaleForTesting(normalBale);
+      game.setPlayerPositionForTesting(normalBale.targetPos.x, normalBale.targetPos.z);
+      game.update(0.05);
+      expect(game.stackedBales.isNotEmpty, isTrue);
+
+      final secondBurning = game.spawner.spawnWithType(ThrownObjectType.burningBale);
+      final int targetCol = game.stackedBales.first.column;
+      final int targetRow = game.stackedBales.first.depthRow;
+      secondBurning.progress = 1.0;
+      secondBurning.gridCol = targetCol;
+      secondBurning.gridRow = targetRow;
+      secondBurning.targetPos.setValues(
+        StackedBale.worldXForColumn(targetCol),
+        BaleSpawner.wagonFloorY,
+        StackedBale.worldZForRow(targetRow),
+      );
+      game.addActiveBaleForTesting(secondBurning);
+      // Move farmer far away so it lands on floor uncaught without direct impact
+      game.setPlayerPositionForTesting(1.3, -3.2);
+      game.update(0.05);
+
+      // Bales in that cell should now be burned/cleared
+      expect(game.getCellCount(targetCol, targetRow), equals(0));
+    });
+
     testWidgets('FarmBaleGameApp mounts Splash -> MainMenu -> 3D GameScreen and HUD',
         (WidgetTester tester) async {
       SharedPreferences.setMockInitialValues({});
@@ -315,6 +382,87 @@ void main() {
       gameController.startTutorialIfFirstTime();
       await tester.pump();
       expect(gameController.isTutorialActive, isFalse);
+    });
+
+    testWidgets('FarmScene3DPainter renders unharvested field, baler pickup header, and harvested stubble', (tester) async {
+      final riveBridge = RiveGameController();
+      final game = GameController(riveBridge: riveBridge);
+
+      // Advance world scroll to simulate tractor driving forward in the field
+      game.update(0.5);
+      expect(game.worldScrollZ, greaterThan(0.0));
+
+      final painter = FarmScene3DPainter(
+        game: game,
+        worldScrollZ: game.worldScrollZ,
+        animTime: 1.25,
+      );
+
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+      const size = Size(390, 844);
+
+      // Paint should execute cleanly without throwing
+      expect(() => painter.paint(canvas, size), returnsNormally);
+
+      // Simulate further driving down the field
+      game.update(1.5);
+      final painter2 = FarmScene3DPainter(
+        game: game,
+        worldScrollZ: game.worldScrollZ,
+        animTime: 2.75,
+      );
+      expect(() => painter2.paint(canvas, size), returnsNormally);
+    });
+
+    testWidgets('StreakPopupBadge animates on streak count increase and bottom incoming banner displays safely', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final riveBridge = RiveGameController();
+      final game = GameController(riveBridge: riveBridge);
+
+      // Verify StreakPopupBadge is initially hidden when combo < 2
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StreakPopupBadge(
+              comboCount: 0,
+              comboMultiplier: 1,
+            ),
+          ),
+        ),
+      );
+      expect(find.textContaining('STREAK'), findsNothing);
+
+      // Pump with streak >= 2 (popup activates)
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StreakPopupBadge(
+              comboCount: 3,
+              comboMultiplier: 2,
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.textContaining('3 STREAK'), findsOneWidget);
+
+      // Increment streak to 5
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StreakPopupBadge(
+              comboCount: 5,
+              comboMultiplier: 3,
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.textContaining('5 STREAK'), findsOneWidget);
+
+      // Verify currentIncomingType getter on GameController
+      expect(game.currentIncomingType, isNull);
     });
   });
 }
