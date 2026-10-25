@@ -241,6 +241,23 @@ void main() {
       expect(game.score, equals(initialScore + 1000));
       expect(game.stackedBales.isEmpty, isTrue);
       expect(game.isGameOver, isFalse);
+
+      // Verify incoming object type and organize proximity countdown
+      expect(game.incomingObjectType, isNotNull);
+      expect(game.balesUntilOrganizeCutscene, equals(GameController.balesPerAutoCutscene));
+      expect(game.isOrganizeApproaching, isFalse);
+
+      // Verify popup appears when incoming bale is generated and disappears when timer ends
+      expect(game.showIncomingPopup, isFalse);
+      for (int i = 0; i < 40 && game.activeBales.isEmpty; i++) {
+        game.update(0.1);
+      }
+      if (game.activeBales.isNotEmpty) {
+        expect(game.showIncomingPopup, isTrue);
+        expect(game.popupIncomingType, isNotNull);
+        game.update(2.0); // Advance past 1.8s
+        expect(game.showIncomingPopup, isFalse);
+      }
     });
 
     testWidgets('FarmBaleGameApp mounts Splash -> MainMenu -> 3D GameScreen and HUD',
@@ -278,15 +295,15 @@ void main() {
       // 4. Verify decluttered HUD Elements & First-Time 3-Step How-To-Play Flow
       expect(find.text('0/45'), findsOneWidget);
       expect(find.text('CATCH'), findsNothing); // Manual catch button removed (auto-catch active)
-      expect(find.text('ADIM 1 / 3'), findsOneWidget);
-      expect(find.text('3x3 RÖMORK HAREKETİ'), findsOneWidget);
+      expect(find.text('STEP 1 / 3'), findsOneWidget);
+      expect(find.text('3x3 WAGON MOVEMENT'), findsOneWidget);
       expect(gameController.totalObjectsCaughtSession, equals(0));
       expect(gameController.totalObjectsCaughtLifetime, equals(0));
 
       // Step through or complete the first-time tutorial flow
       gameController.nextTutorialStep();
       await tester.pump();
-      expect(find.text('ADIM 2 / 3'), findsOneWidget);
+      expect(find.text('STEP 2 / 3'), findsOneWidget);
 
       gameController.completeTutorial();
       await tester.pump();

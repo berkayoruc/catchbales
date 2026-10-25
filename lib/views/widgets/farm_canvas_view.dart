@@ -122,6 +122,11 @@ class FarmScene3DPainter extends CustomPainter {
     // 6. Draw 3D Wooden Wagon, Interior Walls, Stacked Bales & Farmer
     _drawWagonAndContents3D(canvas, cam);
 
+    // 6b. Draw Hitched Full Wagons attached to rear tailgate in tractor train convoy
+    if (game.wagonsCompleted > 0) {
+      _drawHitchedWagons3D(canvas, cam);
+    }
+
     // 7. Draw 3D Parabolic Flying Bales, Ground/Wagon Shadows & Landing Target Rings
     _drawFlyingBales3D(canvas, cam);
 
@@ -1000,6 +1005,185 @@ class FarmScene3DPainter extends CustomPainter {
       baseColor: FarmTheme.wagonWoodDark,
       topHighlightColor: FarmTheme.wagonWoodLight,
     );
+  }
+
+  /// Draws 3D Hitched Full Wagons trailing behind the active wagon in the tractor train convoy.
+  void _drawHitchedWagons3D(Canvas canvas, Camera3DProjector cam) {
+    final double tilt = game.wagonTilt * 0.75;
+    const double xHalf = 1.48;
+    const double floorY = BaleSpawner.wagonFloorY;
+
+    Vector3 tiltPoint(double x, double y, double z) {
+      final double dy = y - floorY;
+      final double rx = x * math.cos(tilt) - dy * math.sin(tilt);
+      final double ry = floorY + x * math.sin(tilt) + dy * math.cos(tilt);
+      return Vector3(rx, ry, z);
+    }
+
+    final int wagonCount = math.min(game.wagonsCompleted, 2);
+    for (int i = 0; i < wagonCount; i++) {
+      // Offset along Z behind active wagon (-3.35)
+      final double zHitchFront = -3.35 - (i * 2.60);
+      final double zFront = -3.85 - (i * 2.60);
+      final double zBack = -5.95 - (i * 2.60);
+      final double midZ = (zFront + zBack) * 0.5;
+
+      // 1. Soft ground shadow under hitched wagon
+      _drawSoftGroundShadow(
+        canvas,
+        cam,
+        worldCenter: Vector3(0.0, floorY, midZ),
+        radiusX: 1.75,
+        radiusZ: 1.25,
+        receiverY: 0.0,
+      );
+
+      // 2. Heavy-duty 3D Iron Tow Hitch & Coupler from preceding wagon
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(-0.14, floorY - 0.10, zFront),
+        maxCorner: tiltPoint(0.14, floorY + 0.04, zHitchFront),
+        baseColor: const Color(0xFF2B2D42),
+        topHighlightColor: const Color(0xFF4A4E69),
+      );
+
+      // Hitch locking pin cylinder
+      final pPin = cam.project(tiltPoint(0.0, floorY + 0.08, zHitchFront + 0.12));
+      canvas.drawCircle(
+        pPin.screenOffset,
+        5.0 * pPin.scale,
+        Paint()..color = FarmTheme.sunWarmYellow,
+      );
+
+      // 3. Wagon 3D Wheels (Front & Rear Axles)
+      for (final double wz in [zFront - 0.42, zBack + 0.42]) {
+        _drawWheel3D(
+          canvas,
+          cam,
+          center: tiltPoint(-xHalf - 0.06, 0.36, wz),
+          radius: 0.36,
+          width: 0.20,
+        );
+        _drawWheel3D(
+          canvas,
+          cam,
+          center: tiltPoint(xHalf + 0.06, 0.36, wz),
+          radius: 0.36,
+          width: 0.20,
+        );
+      }
+
+      // 4. Wooden Floor Bed Slab
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(-xHalf, 0.42, zBack),
+        maxCorner: tiltPoint(xHalf, floorY, zFront),
+        baseColor: FarmTheme.wagonWoodDark,
+        topHighlightColor: FarmTheme.wagonWoodLight,
+      );
+
+      // 5. Wooden Sideboards (Left and Right)
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(-xHalf, floorY, zBack),
+        maxCorner: tiltPoint(-xHalf + 0.12, floorY + 0.45, zFront),
+        baseColor: const Color(0xFF5C3D1E),
+        topHighlightColor: const Color(0xFF8B5E34),
+      );
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(xHalf - 0.12, floorY, zBack),
+        maxCorner: tiltPoint(xHalf, floorY + 0.45, zFront),
+        baseColor: const Color(0xFF5C3D1E),
+        topHighlightColor: const Color(0xFF8B5E34),
+      );
+
+      // 6. Front Bulkhead & Rear Tailgate
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(-xHalf, floorY, zFront - 0.10),
+        maxCorner: tiltPoint(xHalf, floorY + 0.48, zFront),
+        baseColor: const Color(0xFF4A3018),
+      );
+      _drawExtruded3DBox(
+        canvas,
+        cam,
+        minCorner: tiltPoint(-xHalf, floorY, zBack - 0.10),
+        maxCorner: tiltPoint(xHalf, floorY + 0.48, zBack),
+        baseColor: const Color(0xFF4A3018),
+      );
+
+      // 7. Full Stacks of Harvested Golden Straw Bales inside the Hitched Trailer!
+      for (int c = 0; c < 3; c++) {
+        final double bx = StackedBale.worldXForColumn(c) * 0.95;
+        for (int r = 0; r < 3; r++) {
+          final double bz = zFront - 0.38 - (r * 0.65);
+          for (int tier = 0; tier < 4; tier++) {
+            final double by = floorY + (tier * 0.32);
+            _drawStrawBale3D(
+              canvas,
+              cam,
+              center: tiltPoint(bx, by + 0.16, bz),
+              size: Vector3(0.62, 0.30, 0.42),
+              hueVariation: (c * 0.05) - (r * 0.04),
+            );
+          }
+        }
+      }
+
+      // 8. Crossed Heavy-Duty Cargo Straps securing the harvest
+      final Paint strapPaint = Paint()
+        ..color = const Color(0xFF1D3557).withValues(alpha: 0.85)
+        ..strokeWidth = 2.4;
+      for (final double bz in [zFront - 0.50, zFront - 1.20, zFront - 1.80]) {
+        final pL = cam.project(tiltPoint(-xHalf, floorY + 1.28, bz)).screenOffset;
+        final pR = cam.project(tiltPoint(xHalf, floorY + 1.28, bz)).screenOffset;
+        canvas.drawLine(pL, pR, strapPaint);
+      }
+
+      // 9. Harvest Banner Badge on Tailgate: "WAGON #X"
+      final pBadgeCenter = cam.project(tiltPoint(0.0, floorY + 0.28, zBack - 0.12));
+      final int wagonNumber = i + 1;
+      final String badgeText = '🚛 WAGON #$wagonNumber (FULL)';
+      final TextPainter tp = TextPainter(
+        text: TextSpan(
+          text: badgeText,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 9.0 * pBadgeCenter.scale,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final Rect badgeRect = Rect.fromCenter(
+        center: pBadgeCenter.screenOffset,
+        width: tp.width + 12.0 * pBadgeCenter.scale,
+        height: tp.height + 4.0 * pBadgeCenter.scale,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(badgeRect, const Radius.circular(5)),
+        Paint()..color = const Color(0xFF2B2D42).withValues(alpha: 0.90),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(badgeRect, const Radius.circular(5)),
+        Paint()
+          ..color = FarmTheme.sunWarmYellow
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+      tp.paint(
+        canvas,
+        pBadgeCenter.screenOffset - Offset(tp.width * 0.5, tp.height * 0.5),
+      );
+    }
   }
 
   /// Draws an upward-rising 3D Cylinder beam & animated bottom-to-top rings

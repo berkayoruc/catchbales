@@ -389,7 +389,7 @@ class _GameScreenState extends State<GameScreen>
                                   size: 18,
                                 ),
                                 label: const Text(
-                                  'OBJE İSTATİSTİKLERİ',
+                                  'OBJECT STATS',
                                   style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),
@@ -413,7 +413,7 @@ class _GameScreenState extends State<GameScreen>
                                   size: 18,
                                 ),
                                 label: const Text(
-                                  'NASIL OYNANIR?',
+                                  'HOW TO PLAY',
                                   style: TextStyle(fontWeight: FontWeight.w800),
                                 ),
                               ),

@@ -48,7 +48,7 @@ class CaughtStatsDialog extends StatelessWidget {
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'YAKALANAN OBJELER',
+                      'CAUGHT OBJECTS',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -92,7 +92,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   const Expanded(
                     flex: 5,
                     child: Text(
-                      'TOPLAM YAKALANAN',
+                      'TOTAL CAUGHT',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 11.5,
@@ -150,7 +150,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   const Expanded(
                     flex: 5,
                     child: Text(
-                      'SEVK EDİLEN RÖMORK',
+                      'WAGONS HAULED',
                       style: TextStyle(
                         color: Colors.white70,
                         fontSize: 11,
@@ -200,7 +200,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   Expanded(
                     flex: 5,
                     child: Text(
-                      'OBJE / HAYVAN',
+                      'OBJECT / ANIMAL',
                       style: TextStyle(
                         color: Colors.white60,
                         fontSize: 10,
@@ -212,7 +212,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: Text(
-                      'BU OYUN',
+                      'THIS GAME',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: FarmTheme.sunWarmYellow,
@@ -224,7 +224,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   Expanded(
                     flex: 2,
                     child: Text(
-                      'TOPLAM',
+                      'LIFETIME',
                       textAlign: TextAlign.right,
                       style: TextStyle(
                         color: FarmTheme.grassSoftGreen,
@@ -264,7 +264,7 @@ class CaughtStatsDialog extends StatelessWidget {
               ),
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(
-                'TAMAM',
+                'CLOSE',
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.8,
@@ -310,7 +310,7 @@ class CaughtStatsDialog extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  type.displayNameTr,
+                  type.displayNameEn,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -318,7 +318,7 @@ class CaughtStatsDialog extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  isAnimal ? 'Tutulursa: Kısa Stun' : 'Römorka İstiflenir',
+                  isAnimal ? 'Caught: Brief Stun' : 'Stacks on Wagon',
                   style: TextStyle(
                     color: isAnimal ? Colors.orangeAccent : Colors.white54,
                     fontSize: 9.5,

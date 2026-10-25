@@ -124,14 +124,14 @@ class GameOverDialog extends StatelessWidget {
                   ),
                   const Divider(color: Colors.white12, height: 14),
                   _buildStatRow(
-                    'Tamamlanan Römork',
-                    '${game.wagonsCompleted} (Toplam: ${game.lifetimeWagonsCompleted})',
+                    'Completed Wagons',
+                    '${game.wagonsCompleted} (Total: ${game.lifetimeWagonsCompleted})',
                     FarmTheme.sunWarmYellow,
                   ),
                   const Divider(color: Colors.white12, height: 14),
                   _buildStatRow(
-                    'Toplam Yakalanan Obje',
-                    '${game.totalObjectsCaughtSession} (Toplam: ${game.totalObjectsCaughtLifetime})',
+                    'Total Objects Caught',
+                    '${game.totalObjectsCaughtSession} (Total: ${game.totalObjectsCaughtLifetime})',
                     FarmTheme.grassSoftGreen,
                   ),
                   const Divider(color: Colors.white12, height: 14),
@@ -196,7 +196,7 @@ class GameOverDialog extends StatelessWidget {
                 },
                 icon: const Icon(Icons.bar_chart_rounded, size: 18),
                 label: const Text(
-                  'OBJE İSTATİSTİKLERİ',
+                  'OBJECT STATS',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w900,

@@ -34,25 +34,25 @@ class _HowToPlayOverlayState extends State<HowToPlayOverlay> {
 
   static const List<_ShowcaseStep> _steps = [
     _ShowcaseStep(
-      stepBadge: 'ADIM 1 / 3',
-      title: '3x3 RÖMORK HAREKETİ',
-      subtitle: 'Kaydır veya dokun • Otomatik yakalar',
+      stepBadge: 'STEP 1 / 3',
+      title: '3x3 WAGON MOVEMENT',
+      subtitle: 'Swipe or tap • Catches automatically',
       icon: Icons.grid_view_rounded,
       accentColor: FarmTheme.sunWarmYellow,
       target: _SpotlightTarget.bottomPad,
     ),
     _ShowcaseStep(
-      stepBadge: 'ADIM 2 / 3',
-      title: 'RÖMORK & DÜZENLEME',
-      subtitle: '45 balya doldur • Dokunup dengele',
+      stepBadge: 'STEP 2 / 3',
+      title: 'WAGON & ORGANIZE',
+      subtitle: 'Stack 45 bales • Tap to balance',
       icon: Icons.view_in_ar_rounded,
       accentColor: FarmTheme.comboOrange,
       target: _SpotlightTarget.organizeButton,
     ),
     _ShowcaseStep(
-      stepBadge: 'ADIM 3 / 3',
-      title: 'CAN & HAYVANLAR',
-      subtitle: 'Balyayı kaçırma • Hayvan tutarsan kısa stun',
+      stepBadge: 'STEP 3 / 3',
+      title: 'HEALTH & ANIMALS',
+      subtitle: "Don't miss bales • Catching animals causes brief stun",
       icon: Icons.favorite_rounded,
       accentColor: FarmTheme.heartRed,
       target: _SpotlightTarget.healthBar,
@@ -301,7 +301,7 @@ class _HowToPlayOverlayState extends State<HowToPlayOverlay> {
                               GestureDetector(
                                 onTap: widget.game.completeTutorial,
                                 child: const Text(
-                                  'GEÇ ✕',
+                                  'SKIP ✕',
                                   style: TextStyle(
                                     color: Colors.white60,
                                     fontSize: 10,
@@ -372,7 +372,7 @@ class _HowToPlayOverlayState extends State<HowToPlayOverlay> {
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Text(
-                                  isLastStep ? 'BAŞLA' : 'İLERİ',
+                                  isLastStep ? 'START' : 'NEXT',
                                   style: TextStyle(
                                     color: isLastStep
                                         ? Colors.white

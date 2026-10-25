@@ -133,7 +133,7 @@ class MainMenuScreen extends StatelessWidget {
                               children: [
                                 IconButton(
                                   visualDensity: VisualDensity.compact,
-                                  tooltip: 'İstatistikler',
+                                  tooltip: 'Stats',
                                   onPressed: () => _openStats(context, game),
                                   style: IconButton.styleFrom(
                                     backgroundColor: FarmTheme.uiPillBg,

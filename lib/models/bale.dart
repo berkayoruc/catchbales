@@ -15,6 +15,20 @@ enum ThrownObjectType {
 
   bool get isAnimal => this != ThrownObjectType.bale;
 
+  String get displayNameEn => switch (this) {
+        ThrownObjectType.bale => 'Straw Bale',
+        ThrownObjectType.chicken => 'Chicken',
+        ThrownObjectType.rooster => 'Rooster',
+        ThrownObjectType.duck => 'Duck',
+        ThrownObjectType.sheep => 'Sheep',
+        ThrownObjectType.cow => 'Cow',
+        ThrownObjectType.cat => 'Cat',
+        ThrownObjectType.dog => 'Dog',
+        ThrownObjectType.bird => 'Bird',
+      };
+
+  String get displayName => displayNameEn;
+
   String get displayNameTr => switch (this) {
         ThrownObjectType.bale => 'Saman Balyası',
         ThrownObjectType.chicken => 'Tavuk',

@@ -1,0 +1,101 @@
+{
+  "@@locale": "en",
+  "appTitle": "Catch Bales 3D",
+  "playGame": "PLAY GAME",
+  "arcade": "ARCADE",
+  "jenga": "JENGA",
+  "stats": "STATS",
+  "settings": "SETTINGS",
+  "restart": "RESTART",
+  "menu": "MENU",
+  "resume": "RESUME",
+  "gamePaused": "GAME PAUSED",
+
+  "tutorialStep1Title": "3x3 WAGON MOVEMENT",
+  "tutorialStep1Desc": "Use the bottom touch pad to move the farmer across the 9 wagon cells!",
+  "tutorialStep2Title": "ORGANIZE & SCORE",
+  "tutorialStep2Desc": "Every 15 bales triggers a 7-second organize cutscene. Tap this button anytime to organize early!",
+  "tutorialStep3Title": "LIVES & HEALTH",
+  "tutorialStep3Desc": "Every missed straw bale costs 15 HP. Don't miss bales, protect your 4 hearts!",
+  "stepProgress": "STEP {current} / {total}",
+  "@stepProgress": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "buttonBack": "BACK",
+  "buttonNext": "NEXT",
+  "buttonStart": "START!",
+  "buttonSkip": "SKIP",
+  "buttonClose": "CLOSE",
+  "buttonDone": "DONE",
+  "buttonBalance": "BALANCE",
+  "buttonEarlyHaul": "EARLY HAUL",
+  "buttonHaulFull": "HAUL (45/45)",
+  "buttonPlayAgain": "PLAY AGAIN",
+  "buttonNextHaul": "NEXT HAUL",
+  "buttonMainMenu": "MAIN MENU",
+
+  "statsTitle": "CAUGHT OBJECTS",
+  "totalCaught": "TOTAL CAUGHT",
+  "wagonsHauled": "WAGONS HAULED",
+  "headerObject": "OBJECT / ANIMAL",
+  "headerThisGame": "THIS GAME",
+  "headerLifetime": "LIFETIME",
+  "stacksOnWagon": "Stacks on Wagon",
+  "caughtBriefStun": "Caught: Brief Stun",
+
+  "objectBale": "Straw Bale",
+  "objectChicken": "Chicken",
+  "objectRooster": "Rooster",
+  "objectDuck": "Duck",
+  "objectSheep": "Sheep",
+  "objectCow": "Cow",
+  "objectCat": "Cat",
+  "objectDog": "Dog",
+  "objectBird": "Bird",
+
+  "incoming": "INCOMING:",
+  "incomingAlert": "{objectName} INCOMING!",
+  "@incomingAlert": {
+    "placeholders": {
+      "objectName": { "type": "String" }
+    }
+  },
+  "stunRisk": "STUN RISK",
+  "organizeApproaching": "ORGANIZE SOON! ({count} Left)",
+  "@organizeApproaching": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "organizeProgress": "ORGANIZE: {current}/{total}",
+  "@organizeProgress": {
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "wagonFull": "WAGON FULL! (45/45)",
+  "gameOver": "GAME OVER",
+  "newHighScore": "NEW HIGH SCORE!",
+  "finalScore": "Final Score",
+  "bestScore": "Best Score",
+  "wagonLoad": "3x3x5 Wagon Load",
+  "missedBales": "Missed Bales",
+  "completedWagons": "Completed Wagons",
+  "totalObjectsCaught": "Total Objects Caught",
+  "wagonFullDesc": "All 3x3x5 wagon slots stacked!",
+  "outOfLivesDesc": "Out of lives! Mode: {mode}",
+  "@outOfLivesDesc": {
+    "placeholders": {
+      "mode": { "type": "String" }
+    }
+  },
+
+  "sound": "Sound",
+  "haptics": "Haptics"
+}

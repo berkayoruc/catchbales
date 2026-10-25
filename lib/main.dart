@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'controllers/rive_game_controller.dart';
 import 'controllers/game_controller.dart';
+import 'l10n/app_localizations.dart';
 import 'views/splash_screen.dart';
 import 'utils/farm_theme.dart';
 
@@ -50,6 +52,14 @@ class FarmBaleGameApp extends StatelessWidget {
     return MaterialApp(
       title: 'Catch Bales 3D',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: const Locale('en'),
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,

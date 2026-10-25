@@ -30,6 +30,7 @@ class BaleSpawner {
   double _timeSinceLastSpawn = 0.0;
   double _currentSpawnInterval = 2.2; // seconds
   int _baleCounter = 0;
+  ThrownObjectType _nextUpcomingType = ThrownObjectType.bale;
 
   static const List<ThrownObjectType> animalTypes = [
     ThrownObjectType.chicken,
@@ -43,12 +44,20 @@ class BaleSpawner {
   ];
 
   double get currentSpawnInterval => _currentSpawnInterval;
+  ThrownObjectType get nextUpcomingType => _nextUpcomingType;
+
+  void _pickNextUpcomingType() {
+    _nextUpcomingType = (_baleCounter > 0 && _random.nextDouble() < 0.30)
+        ? animalTypes[_random.nextInt(animalTypes.length)]
+        : ThrownObjectType.bale;
+  }
 
   /// Resets spawner state for a fresh game round.
   void reset(GameModeType mode) {
     _timeSinceLastSpawn = 0.0;
     _baleCounter = 0;
     _currentSpawnInterval = mode == GameModeType.arcade ? 2.6 : 3.0;
+    _pickNextUpcomingType();
   }
 
   /// Updates spawn timer and optionally spawns a new bale if interval elapsed.
@@ -87,10 +96,8 @@ class BaleSpawner {
   }) {
     _baleCounter++;
 
-    final ThrownObjectType chosenType = forcedType ??
-        (_baleCounter > 1 && _random.nextDouble() < 0.30
-            ? animalTypes[_random.nextInt(animalTypes.length)]
-            : ThrownObjectType.bale);
+    final ThrownObjectType chosenType = forcedType ?? _nextUpcomingType;
+    _pickNextUpcomingType();
 
     // Pick target cell in the 3x3 wagon grid:
     // If availableCells (< 5 rows) are provided, 85% prioritize an available cell

@@ -172,8 +172,8 @@ class CutsceneOrganizeOverlay extends StatelessWidget {
                             label: Text(
                               game.stackedBales.length >=
                                       GameController.maxWagonCapacity
-                                  ? 'SEVK (45/45)'
-                                  : 'ERKEN SEVK',
+                                  ? 'HAUL (45/45)'
+                                  : 'EARLY HAUL',
                               style: const TextStyle(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w900,

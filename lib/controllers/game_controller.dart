@@ -87,6 +87,12 @@ class GameController extends ChangeNotifier {
   int _wagonsCompleted = 0;
   int _lifetimeWagonsCompleted = 0;
 
+  // Incoming Object & Organize Warning Popup Timer State
+  double _incomingPopupTimer = 0.0;
+  ThrownObjectType? _popupIncomingType;
+  double _organizeAlertTimer = 0.0;
+  int _organizeAlertRemaining = 0;
+
   // Per-Object Caught Statistics (Session & Persistent Lifetime)
   final Map<ThrownObjectType, int> _sessionCaughtByType = {
     for (final t in ThrownObjectType.values) t: 0,
@@ -237,6 +243,40 @@ class GameController extends ChangeNotifier {
   int get comboMultiplier => _comboMultiplier;
   int get wagonsCompleted => _wagonsCompleted;
   int get lifetimeWagonsCompleted => _lifetimeWagonsCompleted;
+
+  /// Returns the actively in-flight incoming bale (closest to landing), or null if none.
+  StrawBale? get currentIncomingBale {
+    final inFlight =
+        _activeBales.where((b) => b.state == BaleState.inFlight).toList();
+    if (inFlight.isEmpty) return null;
+    inFlight.sort((a, b) => b.progress.compareTo(a.progress));
+    return inFlight.first;
+  }
+
+  /// Returns the current incoming object type (either in-flight or next to be thrown).
+  ThrownObjectType get incomingObjectType =>
+      currentIncomingBale?.objectType ?? spawner.nextUpcomingType;
+
+  /// Number of bales caught since the last organize cutscene.
+  int get balesSinceLastCutscene => _balesSinceLastCutscene;
+
+  /// Number of bales remaining until the next automatic 7s organize cutscene.
+  int get balesUntilOrganizeCutscene =>
+      math.max(0, balesPerAutoCutscene - _balesSinceLastCutscene);
+
+  /// True when organize mode is approaching (within 3 bales) and wagon has bales.
+  bool get isOrganizeApproaching =>
+      balesUntilOrganizeCutscene <= 3 && _stackedBales.isNotEmpty;
+  /// True when an incoming object popup banner is actively displaying (pops up for ~1.8s then disappears).
+  bool get showIncomingPopup =>
+      _incomingPopupTimer > 0.0 && _popupIncomingType != null;
+  ThrownObjectType? get popupIncomingType => _popupIncomingType;
+  double get incomingPopupTimer => _incomingPopupTimer;
+
+  /// True when organize countdown alert is displaying (pops up briefly then disappears).
+  bool get showOrganizeAlert => _organizeAlertTimer > 0.0;
+  int get organizeAlertRemaining => _organizeAlertRemaining;
+
   Map<ThrownObjectType, int> get sessionCaughtStats =>
       Map.unmodifiable(_sessionCaughtByType);
   Map<ThrownObjectType, int> get lifetimeCaughtStats =>
@@ -546,6 +586,10 @@ class GameController extends ChangeNotifier {
     _selectedOrganizeColumn = null;
     _selectedOrganizeDepthRow = null;
     _balesSinceLastCutscene = 0;
+    _incomingPopupTimer = 0.0;
+    _popupIncomingType = null;
+    _organizeAlertTimer = 0.0;
+    _organizeAlertRemaining = 0;
     _isHoldingLeft = false;
     _isHoldingRight = false;
     _isHoldingForward = false;
@@ -577,6 +621,10 @@ class GameController extends ChangeNotifier {
     _selectedOrganizeColumn = null;
     _selectedOrganizeDepthRow = null;
     _balesSinceLastCutscene = 0;
+    _incomingPopupTimer = 0.0;
+    _popupIncomingType = null;
+    _organizeAlertTimer = 0.0;
+    _organizeAlertRemaining = 0;
     _isHoldingLeft = false;
     _isHoldingRight = false;
     _isHoldingForward = false;
@@ -851,8 +899,8 @@ class GameController extends ChangeNotifier {
 
     _addFloatingNotice(
       isFullWagonBonus
-          ? '🚛 RÖMORK #$_wagonsCompleted TAMAM! +$bonusPoints'
-          : '🚛 SEVKİYAT #$_wagonsCompleted! +$bonusPoints',
+          ? '🚛 WAGON #$_wagonsCompleted FULL! +$bonusPoints'
+          : '🚛 HAUL #$_wagonsCompleted! +$bonusPoints',
       0.0,
       -0.25,
       true,
@@ -905,6 +953,12 @@ class GameController extends ChangeNotifier {
     bale.state = BaleState.caught;
     _balesCaught++;
     _balesSinceLastCutscene++;
+    _incomingPopupTimer = 0.0;
+    final remainingCutscene = balesPerAutoCutscene - _balesSinceLastCutscene;
+    if (remainingCutscene > 0 && remainingCutscene <= 3) {
+      _organizeAlertTimer = 2.0;
+      _organizeAlertRemaining = remainingCutscene;
+    }
     _recordObjectCaught(ThrownObjectType.bale);
 
     // Increment combo
@@ -933,7 +987,7 @@ class GameController extends ChangeNotifier {
     // Stack the caught bale into the 3x3x5 grid at (placeCol, placeRow, placeTier)
     _placeBaleInWagon(bale, placeCol, placeRow, placeTier);
 
-    final noticeText = wasSpillover ? '+$points (KAYDIRMA)' : '+$points';
+    final noticeText = wasSpillover ? '+$points (SPILLOVER)' : '+$points';
     _addFloatingNotice(noticeText, _playerX, -0.3, isPerfect);
 
     // Check Victory Condition: Full 3x3x5 Wagon (45 Bales) or Quota Met!
@@ -1056,6 +1110,7 @@ class GameController extends ChangeNotifier {
     _missedCount++;
     _comboCount = 0;
     _comboMultiplier = 1;
+    _incomingPopupTimer = 0.0;
 
     _health = math.max(0.0, _health - 15.0);
     _lastDamageTaken = 15;
@@ -1084,6 +1139,7 @@ class GameController extends ChangeNotifier {
 
     _isStunned = true;
     _stunTimer = animalCatchStunDuration;
+    _incomingPopupTimer = 0.0;
     _comboCount = 0;
     _comboMultiplier = 1;
     _screenShake = math.max(_screenShake, 0.45);
@@ -1129,6 +1185,7 @@ class GameController extends ChangeNotifier {
     bale.state = BaleState.stunHit;
     _isStunned = true;
     _stunTimer = stunDuration;
+    _incomingPopupTimer = 0.0;
 
     _comboCount = 0;
     _comboMultiplier = 1;
@@ -1290,6 +1347,14 @@ class GameController extends ChangeNotifier {
       _damageFlash = math.max(0.0, _damageFlash - (dt * 1.65));
     }
 
+    // 4b. Update incoming object and organize alert popup timers
+    if (_incomingPopupTimer > 0.0) {
+      _incomingPopupTimer = math.max(0.0, _incomingPopupTimer - dt);
+    }
+    if (_organizeAlertTimer > 0.0) {
+      _organizeAlertTimer = math.max(0.0, _organizeAlertTimer - dt);
+    }
+
     // 5. Update trailer physics and sync to Rive
     trailerPhysics.update(dt, _gameMode == GameModeType.puzzle);
     riveBridge.setTrailerWobble(trailerPhysics.wobbleIntensity);
@@ -1325,6 +1390,8 @@ class GameController extends ChangeNotifier {
         newBale.targetPos.x,
         newBale.targetPos.z,
       );
+      _popupIncomingType = newBale.objectType;
+      _incomingPopupTimer = 1.8;
     }
 
     // 7. Update in-flight and missed/overflow bales
