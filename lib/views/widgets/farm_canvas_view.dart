@@ -1154,6 +1154,7 @@ class FarmScene3DPainter extends CustomPainter {
         text: TextSpan(
           text: badgeText,
           style: TextStyle(
+            fontFamily: FarmTheme.fontFamily,
             color: Colors.white,
             fontSize: 9.0 * pBadgeCenter.scale,
             fontWeight: FontWeight.w900,
@@ -1680,6 +1681,7 @@ class FarmScene3DPainter extends CustomPainter {
         final textSpan = TextSpan(
           text: labelText,
           style: TextStyle(
+            fontFamily: FarmTheme.fontFamily,
             color: Colors.white.withValues(alpha: fade),
             fontSize: 12,
             fontWeight: FontWeight.w900,
@@ -2316,6 +2318,7 @@ class FarmScene3DPainter extends CustomPainter {
       final textSpan = TextSpan(
         text: notice.isDamage ? '💔 ${notice.text}' : notice.text,
         style: TextStyle(
+          fontFamily: FarmTheme.fontFamily,
           color: (notice.isDamage
                   ? Colors.white
                   : (notice.isSpecial ? FarmTheme.sunWarmYellow : Colors.white))

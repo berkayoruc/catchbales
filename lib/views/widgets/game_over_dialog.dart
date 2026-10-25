@@ -69,10 +69,11 @@ class GameOverDialog extends StatelessWidget {
                   : (isHighScore ? 'NEW HIGH SCORE!' : 'GAME OVER'),
               textAlign: TextAlign.center,
               style: TextStyle(
+                fontFamily: FarmTheme.displayFontFamily,
                 color: isVictory || isHighScore
                     ? FarmTheme.sunWarmYellow
                     : Colors.white,
-                fontSize: 20,
+                fontSize: 22,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
               ),

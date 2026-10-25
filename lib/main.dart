@@ -64,6 +64,7 @@ class FarmBaleGameApp extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Colors.black,
+        fontFamily: FarmTheme.fontFamily,
         colorScheme: ColorScheme.fromSeed(
           seedColor: FarmTheme.goldenStraw,
           brightness: Brightness.dark,

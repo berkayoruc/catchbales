@@ -235,8 +235,9 @@ class _SplashScreenState extends State<SplashScreen>
                                   'CATCH BALES',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
+                                    fontFamily: FarmTheme.displayFontFamily,
                                     color: Colors.white,
-                                    fontSize: 30,
+                                    fontSize: 32,
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: 1.8,
                                     shadows: [

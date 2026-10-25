@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 class FarmTheme {
   FarmTheme._();
 
+  // Typography
+  static const String fontFamily = 'Fredoka';
+  static const String displayFontFamily = 'LilitaOne';
+
   // Primary Palette
   static const Color sunWarmYellow = Color(0xFFFFD166);
   static const Color goldenStraw = Color(0xFFF4B942);

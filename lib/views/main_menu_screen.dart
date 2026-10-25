@@ -202,8 +202,9 @@ class MainMenuScreen extends StatelessWidget {
                                   Text(
                                     'CATCH BALES',
                                     style: TextStyle(
+                                      fontFamily: FarmTheme.displayFontFamily,
                                       color: Colors.white,
-                                      fontSize: 26,
+                                      fontSize: 28,
                                       fontWeight: FontWeight.w900,
                                       letterSpacing: 1.5,
                                     ),
